@@ -160,8 +160,8 @@ dialog textarea{min-height:90px;resize:vertical}
   <input id="apiKey" type="password" placeholder="AIza...">
   <div class="note">Google AI Studio（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>）で無料取得できます。キーはこの端末の中だけに保存されます。</div>
   <label>モデル名</label>
-  <input id="model" placeholder="gemini-2.5-flash">
-  <div class="note">動かない時は gemini-2.5-flash-lite などに変更してください。</div>
+  <input id="model" placeholder="gemini-3.5-flash-lite">
+  <div class="note">空のままなら、使えるモデルを自動で選びます（例：gemini-3.5-flash-lite、gemini-3.8-flash）。</div>
   <label>呼び名（あなたを何と呼ぶか）</label>
   <input id="userName" placeholder="nozuさん">
   <label>GASのURL（台帳・ドキュメント・LINE・Notion）</label>
@@ -220,7 +220,7 @@ const DEFAULT_PERSONA =
 '返事は音声で読み上げられるので、話し言葉で、短く要点から答えてください（基本は3文以内）。' +
 '記号・箇条書き・表は使わないでください。わからない事は正直にわからないと言ってください。';
 
-const defaults = { apiKey:'', model:'gemini-2.5-flash', userName:'nozuさん', persona:DEFAULT_PERSONA, speakOn:true, rate:'1.1',
+const defaults = { apiKey:'', model:'gemini-3.5-flash-lite', userName:'nozuさん', persona:DEFAULT_PERSONA, speakOn:true, rate:'1.1',
   avatar:'', gasUrl:'', gasSecret:'', voice:'', pitch:'0.95', history:[], records:[], lastDoc:null };
 let S = load();
 if(S.persona && S.persona.includes('ジャービス')){ S.persona = DEFAULT_PERSONA; }
@@ -889,13 +889,41 @@ $('jobsBtn').addEventListener('click', async () => { if(gasReady()){ try{ await 
 $('jobsClose').addEventListener('click', () => $('jobsDlg').close());
 
 /* ========== 5. 外部とのつなぎ（Gemini・GAS・保存・調べもの） ========== */
-async function gemini(body){
+async function gemini(body, retried){
+  const b = JSON.parse(JSON.stringify(body));
+  const g = b.generationConfig || (b.generationConfig = {});
+  if(!/gemini-2\.5/.test(S.model)){          // 新しい世代のモデルは「考え込みOFF」の指定を外し、出力の上限に余裕を持たせる
+    delete g.thinkingConfig;
+    g.maxOutputTokens = Math.max(g.maxOutputTokens || 0, 4000);
+  }
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
               encodeURIComponent(S.model) + ':generateContent?key=' + encodeURIComponent(S.apiKey);
-  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) });
   const data = await res.json();
+  if(res.status === 404 && !retried){         // モデルが使えない → 使えるモデルを自動で探して1回だけやり直す
+    const m = await pickModel();
+    if(m && m !== S.model){
+      addMsg('モデル「' + S.model + '」は使えないため、「' + m + '」に切り替えました（設定で変更できます）。', 'sys');
+      S.model = m; save();
+      return gemini(body, true);
+    }
+  }
   if(!res.ok) throw new Error(errText(res.status, data));
   return data;
+}
+// このAPIキーで使えるモデルを一覧から選ぶ（軽くて速い Flash 系を優先）
+const MODEL_PREF = ['gemini-3.5-flash-lite','gemini-3.8-flash','gemini-3.6-flash','gemini-3.1-flash-lite','gemini-flash-lite-latest','gemini-flash-latest','gemini-2.5-flash','gemini-2.5-flash-lite'];
+async function pickModel(){
+  try{
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(S.apiKey));
+    const d = await r.json();
+    const ok = (d.models || []).filter(x => (x.supportedGenerationMethods || []).includes('generateContent'))
+                              .map(x => String(x.name).replace(/^models\//, ''));
+    for(const p of MODEL_PREF) if(ok.includes(p)) return p;
+    const flash = ok.filter(n => /^gemini-[\d.]+-flash(-lite)?$/.test(n))
+                    .sort((a, b) => parseFloat(b.slice(7)) - parseFloat(a.slice(7)));
+    return flash[0] || null;
+  }catch(e){ return null; }
 }
 function errText(status, data){
   const m = data?.error?.message || '';
