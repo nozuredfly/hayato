@@ -177,7 +177,7 @@ dialog textarea{min-height:90px;resize:vertical}
   <div class="check"><input type="checkbox" id="speakOn"><span>返事を声で読み上げる</span></div>
   <label>ハヤトの声</label>
   <select id="voice"></select>
-  <div class="note">「自動」は男性の声（Otoya・Keitaなど）を優先して選びます。声の一覧はこの機械に入っている声です。</div>
+  <div class="note" id="voiceNote">「自動」は男性の声（Otoya・Keitaなど）を優先して選びます。声の一覧はこの機械に入っている声です。</div>
   <label>声の高さ</label>
   <select id="pitch">
     <option value="0.8">低め</option>
@@ -1060,6 +1060,15 @@ function fillVoiceList(){
   const o = document.createElement('option'); o.value = ''; o.textContent = '自動' + (auto ? '（今は ' + auto.name + '）' : ''); sel.appendChild(o);
   vs.forEach(v => { const op = document.createElement('option'); op.value = v.name; op.textContent = v.name + (MALE.test(v.name) ? ' 👨' : ''); sel.appendChild(op); });
   sel.value = vs.some(v => v.name === S.voice) ? S.voice : '';
+  const note = $('voiceNote');
+  if(note) note.textContent = vs.length
+    ? '「自動」は男性の声（Otoya・Keitaなど）を優先して選びます。声の一覧はこの機械に入っている声です。'
+    : 'この機械では声の一覧を読み込めませんでした。「🔊 試しに聞く」を一度押すと出ることがあります。iPhoneでは、本体の「設定」→「アクセシビリティ」→「読み上げコンテンツ」→「声」→「日本語」で選んだ声で話します。';
+}
+// iPhoneは声の一覧が遅れて届くので、少し待ちながら何度か読み直す
+function loadVoices(tries){
+  fillVoiceList();
+  if(!jaVoices().length && tries > 0) setTimeout(() => loadVoices(tries - 1), 300);
 }
 if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = fillVoiceList;
 
@@ -1152,7 +1161,7 @@ const dlg = $('settings');
 function openSettings(){
   $('apiKey').value = S.apiKey; $('model').value = S.model; $('userName').value = S.userName;
   $('persona').value = S.persona; $('speakOn').checked = S.speakOn; $('rate').value = S.rate;
-  fillVoiceList(); $('pitch').value = S.pitch;
+  loadVoices(10); $('pitch').value = S.pitch;
   $('gasUrl').value = S.gasUrl; $('gasSecret').value = S.gasSecret; $('gasMsg').textContent = '';
   dlg.showModal();
 }
@@ -1163,6 +1172,7 @@ $('voiceTest').addEventListener('click', () => {
   Object.assign(S, { voice:$('voice').value, pitch:$('pitch').value, rate:$('rate').value, speakOn:true });
   speak('ハヤトです。' + S.userName + '、今日もよろしくお願いします。', 'ja', true);
   Object.assign(S, { voice:keep.v, pitch:keep.p, rate:keep.r, speakOn:keep.on });
+  if(!jaVoices().length){ const keepSel = $('voice').value; setTimeout(() => { loadVoices(5); if(keepSel) $('voice').value = keepSel; }, 600); }
 });
 $('gasTest').addEventListener('click', async () => {
   const keep = { u:S.gasUrl, k:S.gasSecret };
