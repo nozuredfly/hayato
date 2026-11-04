@@ -896,10 +896,27 @@ async function gemini(body, retried){
     delete g.thinkingConfig;
     g.maxOutputTokens = Math.max(g.maxOutputTokens || 0, 4000);
   }
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-              encodeURIComponent(S.model) + ':generateContent?key=' + encodeURIComponent(S.apiKey);
-  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) });
-  const data = await res.json();
+  const call = async (model) => {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+                encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(S.apiKey);
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b) });
+    return { res:r, data: await r.json().catch(() => ({})) };
+  };
+  let { res, data } = await call(S.model);
+  // 混雑（503/500）の時：少し待って2回までやり直す → それでもだめなら別のモデルで1回だけ答える
+  for(let i = 0; i < 2 && (res.status === 503 || res.status === 500); i++){
+    setState('thinking', '混み合っています。少し待ってやり直しています…');
+    await new Promise(ok => setTimeout(ok, 1500 * (i + 1)));
+    ({ res, data } = await call(S.model));
+  }
+  if(res.status === 503 || res.status === 500){
+    const alt = await pickModel(S.model);
+    if(alt){
+      setState('thinking', '別のモデル（' + alt + '）で答えています…');
+      const r2 = await call(alt);
+      if(r2.res.ok) return r2.data;
+    }
+  }
   if(res.status === 404 && !retried){         // モデルが使えない → 使えるモデルを自動で探して1回だけやり直す
     const m = await pickModel();
     if(m && m !== S.model){
@@ -913,12 +930,12 @@ async function gemini(body, retried){
 }
 // このAPIキーで使えるモデルを一覧から選ぶ（軽くて速い Flash 系を優先）
 const MODEL_PREF = ['gemini-3.5-flash-lite','gemini-3.8-flash','gemini-3.6-flash','gemini-3.1-flash-lite','gemini-flash-lite-latest','gemini-flash-latest','gemini-2.5-flash','gemini-2.5-flash-lite'];
-async function pickModel(){
+async function pickModel(exclude){
   try{
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(S.apiKey));
     const d = await r.json();
     const ok = (d.models || []).filter(x => (x.supportedGenerationMethods || []).includes('generateContent'))
-                              .map(x => String(x.name).replace(/^models\//, ''));
+                              .map(x => String(x.name).replace(/^models\//, '')).filter(n => n !== exclude);
     for(const p of MODEL_PREF) if(ok.includes(p)) return p;
     const flash = ok.filter(n => /^gemini-[\d.]+-flash(-lite)?$/.test(n))
                     .sort((a, b) => parseFloat(b.slice(7)) - parseFloat(a.slice(7)));
@@ -930,6 +947,7 @@ function errText(status, data){
   if(status===429) return '使いすぎで一時的に止まっています。1分ほど待ってからどうぞ（無料枠の上限）。';
   if(status===400 && /API key/i.test(m)) return 'APIキーが正しくないようです。設定を確認してください。';
   if(status===404) return 'モデル名が見つかりません。設定でモデル名を確認してください。';
+  if(status===503 || status===500) return 'Googleのモデルが混み合っていて答えられませんでした。少し時間をおいて、もう一度どうぞ。';
   return 'エラー（' + status + '）：' + m;
 }
 function gasReady(){ return !!(S.gasUrl && S.gasSecret); }
