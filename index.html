@@ -609,6 +609,7 @@ async function ask(userText, photo){
   S.history.push({ role:'user', text:userText, photo: photo ? true : undefined });
   setState('thinking', photo ? '📷 写真を見ています…' : '考えています…');
   const ctx = { text:userText, photo, now:nowText() };
+  const t0 = Date.now(); perf.ai = 0; perf.gas = 0;
 
   let sys = S.persona + '\nユーザーの呼び名：' + S.userName + '\n現在日時：' + ctx.now + '\n\n' + ROUTER_RULES;
   if(gasReady()){ try{ await getSchema(); }catch(e){ sys += '\n\n（台帳に接続できませんでした：' + e.message + '。台帳を使う仕事は今はできないと伝えてください）'; } }
@@ -658,7 +659,13 @@ async function ask(userText, photo){
     }
     reply = reply || '申し訳ありません、うまく答えられませんでした。';
     S.history.push({ role:'model', text:reply }); save();
-    addAi(reply);
+    const bubble = addAi(reply);
+    const sec = (Date.now() - t0) / 1000;
+    if(sec >= 3){   // 遅かった時だけ、どこで時間がかかったかを小さく出す
+      const t = document.createElement('div'); t.className = 'src';
+      t.textContent = '⏱ ' + sec.toFixed(1) + '秒（AI ' + (perf.ai/1000).toFixed(1) + '秒・台帳 ' + (perf.gas/1000).toFixed(1) + '秒）';
+      bubble.appendChild(t);
+    }
     speak(reply);
   }catch(e){
     S.history.pop(); save();
@@ -889,11 +896,16 @@ $('jobsBtn').addEventListener('click', async () => { if(gasReady()){ try{ await 
 $('jobsClose').addEventListener('click', () => $('jobsDlg').close());
 
 /* ========== 5. 外部とのつなぎ（Gemini・GAS・保存・調べもの） ========== */
+const perf = { ai:0, gas:0 };
 async function gemini(body, retried){
+  const t0 = Date.now();
+  try{ return await gemini_(body, retried); } finally { perf.ai += Date.now() - t0; }
+}
+async function gemini_(body, retried){
   const b = JSON.parse(JSON.stringify(body));
   const g = b.generationConfig || (b.generationConfig = {});
-  if(!/gemini-2\.5/.test(S.model)){          // 新しい世代のモデルは「考え込みOFF」の指定を外し、出力の上限に余裕を持たせる
-    delete g.thinkingConfig;
+  if(!/gemini-2\.5/.test(S.model)){          // 新しい世代のモデルは「考え込み」を最小にして速く答えさせる
+    if(!(S.noThink || {})[S.model]) g.thinkingConfig = { thinkingLevel:'minimal' }; else delete g.thinkingConfig;
     g.maxOutputTokens = Math.max(g.maxOutputTokens || 0, 4000);
   }
   const call = async (model) => {
@@ -903,6 +915,11 @@ async function gemini(body, retried){
     return { res:r, data: await r.json().catch(() => ({})) };
   };
   let { res, data } = await call(S.model);
+  if(res.status === 400 && /thinking/i.test(data?.error?.message || '') && g.thinkingConfig){   // この指定に未対応のモデルなら外してやり直す
+    delete g.thinkingConfig;
+    S.noThink = Object.assign({}, S.noThink, { [S.model]:true }); save();   // 次からは最初から付けない
+    ({ res, data } = await call(S.model));
+  }
   // 混雑（503/500）の時：少し待って2回までやり直す → それでもだめなら別のモデルで1回だけ答える
   for(let i = 0; i < 2 && (res.status === 503 || res.status === 500); i++){
     setState('thinking', '混み合っています。少し待ってやり直しています…');
@@ -922,7 +939,7 @@ async function gemini(body, retried){
     if(m && m !== S.model){
       addMsg('モデル「' + S.model + '」は使えないため、「' + m + '」に切り替えました（設定で変更できます）。', 'sys');
       S.model = m; save();
-      return gemini(body, true);
+      return gemini_(body, true);
     }
   }
   if(!res.ok) throw new Error(errText(res.status, data));
@@ -952,19 +969,36 @@ function errText(status, data){
 }
 function gasReady(){ return !!(S.gasUrl && S.gasSecret); }
 async function gas(action, params){
+  const t0 = Date.now();
+  try{ return await gas_(action, params); } finally { perf.gas += Date.now() - t0; }
+}
+async function gas_(action, params){
   const res = await fetch(S.gasUrl, { method:'POST', body: JSON.stringify(Object.assign({ secret:S.gasSecret, action }, params||{})) });
   let data;
   try{ data = await res.json(); }catch(e){ throw new Error('GASの返事が読めません（URLかデプロイ設定を確認）'); }
   if(!data.ok) throw new Error(data.error || 'GASエラー');
   return data;
 }
-let schemaCache = null, gasInfo = { line:false, lineNames:[], notion:false };
+// 台帳の一覧は端末に覚えておき、まずそれを使う（待たない）。3分以上たっていたら裏で新しくする
+let schemaCache = (S.schema && S.schema.d) ? S.schema : null;
+let gasInfo = (S.schema && S.schema.info) || { line:false, lineNames:[], notion:false };
+let schemaPending = null;
+function refreshSchema(){
+  if(schemaPending) return schemaPending;
+  schemaPending = gas('schema').then(all => {
+    gasInfo = { line: !!all.line, lineNames: all.lineNames || [], notion: !!all.notion };
+    schemaCache = { t:Date.now(), d: all.sheets, info: gasInfo };
+    S.schema = schemaCache; save();
+    return all.sheets;
+  }).finally(() => { schemaPending = null; });
+  return schemaPending;
+}
 async function getSchema(force){
-  if(!force && schemaCache && Date.now()-schemaCache.t < 3*60*1000) return schemaCache.d;
-  const all = await gas('schema');
-  gasInfo = { line: !!all.line, lineNames: all.lineNames || [], notion: !!all.notion };
-  schemaCache = { t:Date.now(), d: all.sheets };
-  return all.sheets;
+  if(!force && schemaCache){
+    if(Date.now() - schemaCache.t > 3*60*1000) refreshSchema().catch(() => {});   // 古ければ裏で更新
+    return schemaCache.d;
+  }
+  return refreshSchema();
 }
 async function saveDocument(title, content){
   if(gasReady()){
@@ -1213,7 +1247,7 @@ $('saveSet').addEventListener('click', () => {
   S.persona = $('persona').value.trim() || DEFAULT_PERSONA;
   S.speakOn = $('speakOn').checked; S.rate = $('rate').value;
   S.voice = $('voice').value; S.pitch = $('pitch').value;
-  S.gasUrl = $('gasUrl').value.trim(); S.gasSecret = $('gasSecret').value.trim(); schemaCache = null;
+  S.gasUrl = $('gasUrl').value.trim(); S.gasSecret = $('gasSecret').value.trim(); schemaCache = null; S.schema = null;
   save(); dlg.close();
   addMsg('設定を保存しました。', 'sys');
 });
@@ -1335,6 +1369,7 @@ function stopMouth(){ talking = false; clearTimeout(mouthTimer); showFrame('clos
 /* ========== 起動 ========== */
 applyAvatar();
 showWeatherBar();
+if(gasReady()) refreshSchema().catch(() => {});   // 起動と同時にGASを起こしておく（最初の返事を速く）
 renderHistory();
 if(!S.apiKey) setTimeout(openSettings, 400);
 </script>
