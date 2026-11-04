@@ -1177,6 +1177,8 @@ $('voiceTest').addEventListener('click', () => {
 $('gasTest').addEventListener('click', async () => {
   const keep = { u:S.gasUrl, k:S.gasSecret };
   S.gasUrl = $('gasUrl').value.trim(); S.gasSecret = $('gasSecret').value.trim();
+  if(!S.gasUrl || !S.gasSecret){ $('gasMsg').textContent = '❌ GASのURLと合言葉の両方を入れてください（機械ごとに入力が必要です）'; S.gasUrl = keep.u; S.gasSecret = keep.k; return; }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(S.gasUrl)){ $('gasMsg').textContent = '❌ GASのURLは https://script.google.com/macros/s/…/exec の形です。最後が /exec か確認してください'; S.gasUrl = keep.u; S.gasSecret = keep.k; return; }
   $('gasMsg').textContent = '確認中…';
   try{
     const sh = await getSchema(true);
