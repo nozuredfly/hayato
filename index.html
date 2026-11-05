@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv6</title>
+<title>AIハヤト Lv7</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -107,11 +107,81 @@ dialog textarea{min-height:90px;resize:vertical}
 .job .note{white-space:pre-wrap}
 .tag{display:inline-block;font-size:11px;border-radius:10px;padding:1px 8px;margin-left:4px;border:1px solid var(--line);color:var(--sub)}
 .tag.read{border-color:#2f8f6a;color:#a8e6cf}.tag.draft{border-color:#8a7a2f;color:#f0e2a0}.tag.commit{border-color:var(--warn);color:var(--warn)}
+/* ===== 作業状況ボード（広い画面だけ） ===== */
+#shell{display:flex;flex:1;min-height:0}
+#left{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
+#dash{display:none}
+@media (min-width:1100px){
+  body.wide{max-width:none}
+  body.wide #left{flex:0 0 400px;border-right:1px solid var(--line);background:rgba(5,11,22,.6)}
+  body.wide #dash{display:block;flex:1;min-width:0;overflow-y:auto;padding:18px 26px 30px;
+    background-color:#050b16;background-image:linear-gradient(rgba(62,230,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(62,230,255,.04) 1px,transparent 1px);background-size:32px 32px}
+  body.wide #stage{width:170px;height:170px}
+}
+.mono{font-family:"SF Mono",Menlo,Consolas,monospace}
+.d-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.d-head h2{font-size:17px;letter-spacing:.24em;color:var(--cyan);font-weight:700}
+.d-head .d-src{font-size:12px;color:var(--sub)}
+.d-head .d-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.d-btn{background:none;border:1px solid var(--line);color:#c9e6f5;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;min-height:36px}
+.d-btn:hover{border-color:var(--cyan2)}
+.d-card{border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:14px 16px;margin-bottom:14px}
+.d-card h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.d-card h3 .d-note{font-size:12px;color:var(--sub);font-weight:400}
+.d-card h3 .d-aside{margin-left:auto;font-size:12px;color:var(--sub);font-weight:400}
+.d-say{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--cyan2);box-shadow:0 0 22px rgba(62,230,255,.12)}
+.d-say .d-lbl{font-size:11px;letter-spacing:.16em;color:var(--cyan);white-space:nowrap;padding-top:3px}
+.d-say p{flex:1;font-size:15px;line-height:1.75}
+.d-pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}
+.d-tile{border-radius:8px;background:#0c1a2e;border:1px solid #2a3f5c;padding:8px 10px}
+.d-tile .k{font-size:12px;color:var(--sub)} .d-tile .v{font-size:24px;font-weight:600}
+.d-tile.warn{background:rgba(255,179,71,.12);border-color:#b8862c} .d-tile.warn .k{color:#ffcf86} .d-tile.warn .v{color:var(--warn)}
+.d-tile.run{background:rgba(62,230,255,.08);border-color:var(--cyan2)} .d-tile.run .v{color:var(--cyan)}
+.d-tile.done{border-color:#2f8f6a} .d-tile.done .k,.d-tile.done .v{color:#a8e6cf}
+.d-tile.other{border-style:dashed;border-color:#4a5f7a}
+.d-tile.zero .v{color:#4a6580}
+.d-ai{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px}
+.d-aic{border:1px solid #2a3f5c;border-radius:10px;background:#0c1a2e;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.d-aic .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
+.d-aic .mk{width:26px;height:26px;border-radius:50%;border:1px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--cyan)}
+.d-aic .rl{font-size:11px;color:var(--sub)} .d-aic .ct{font-size:12px} .d-aic .ls{font-size:11px;color:var(--sub)}
+.hl{color:#ffcf86}
+.d-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin:4px 0 10px}
+.d-legend h3{font-size:14px;color:var(--text)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot.fresh{background:var(--cyan);box-shadow:0 0 8px var(--cyan)} .dot.warn{background:var(--warn)} .dot.stale{border:2px solid var(--sub)}
+.d-bots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px}
+.d-bot{display:flex;flex-direction:column;gap:7px;text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.92);padding:14px}
+a.d-bot:hover{border-color:var(--cyan2)}
+.d-bot.stale{border-style:dashed;border-color:#4a5f7a;color:#b9c9d6}
+.d-bot.appr{border-color:#b8862c}
+.d-bot .top{display:flex;align-items:center;gap:8px} .d-bot .nm{font-size:15px;font-weight:700}
+.d-bot .boss{margin-left:auto;font-size:11px;color:var(--sub)} .d-bot .dp{font-size:12px;color:var(--sub)}
+.d-bot .job{font-size:14px;line-height:1.5;border:none;padding:0}
+.d-bot .st{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--sub)}
+.d-bot .ft{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--sub);border-top:1px solid #16294a;padding-top:8px}
+.pill{font-size:12px;border-radius:10px;padding:1px 8px;border:1px solid #4a5f7a;color:#c9e6f5;white-space:nowrap}
+.pill.承認待ち{background:var(--warn);border-color:var(--warn);color:#021018;font-weight:700}
+.pill.実行中{border-color:var(--cyan2);color:#9eeaff} .pill.完了{border-color:#2f8f6a;color:#a8e6cf}
+.pill.検証中{border-color:#6b5fb8;color:#d4c8ff} .pill.分析中{border-color:#b8862c;color:#ffcf86}
+.pill.担当振分{border-color:var(--cyan2);color:#c9e6f5} .pill.差し戻し,.pill.エラー{border-color:var(--warn);color:var(--warn)}
+.d-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.d-two .d-card{margin-bottom:0}
+.d-list a{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:10px;align-items:center;text-decoration:none;color:var(--text);padding:8px 2px;border-bottom:1px solid #16294a;font-size:13px}
+.d-list a:last-child{border-bottom:none} .d-list a:hover .t{color:var(--cyan)}
+.d-list .w{color:var(--sub);font-size:12px} .d-list .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .d-list .s{font-size:12px;color:var(--sub)}
+.d-field{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:13px;margin-top:14px;border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:12px 16px}
+.d-field .k{color:var(--sub)}
+.d-empty{font-size:13px;color:var(--sub);line-height:1.7}
+.d-setup{border-color:var(--warn)} .d-setup p{font-size:14px;line-height:1.8}
+.d-foot{font-size:11px;color:#6f8fa8;margin-top:12px}
 </style>
 </head>
 <body>
+<div id="shell">
+<div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv6</small></h1>
+  <h1>AI HAYATO<small>Lv7</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -145,6 +215,10 @@ dialog textarea{min-height:90px;resize:vertical}
   <button id="send">送信</button>
 </div>
 
+</div>
+<aside id="dash" aria-label="作業状況ボード"></aside>
+</div>
+
 <dialog id="jobsDlg">
   <h2>ハヤトができる仕事</h2>
   <div class="note" style="margin-top:0">「その場で回答」はすぐ答えます。「確認して実行」は、確認カードで「はい」と言うまで登録・送信しません。</div>
@@ -169,6 +243,10 @@ dialog textarea{min-height:90px;resize:vertical}
   <label>台帳の合言葉</label>
   <input id="gasSecret" type="password" placeholder="GASに書いた合言葉">
   <div class="avrow"><button id="gasTest">接続テスト</button><span id="gasMsg" class="note" style="margin:0"></span></div>
+  <label>Grok Bot 名簿（作業状況ボード用・任意）</label>
+  <textarea id="roster" placeholder="1行に1人：名前,部門,上司AI&#10;例）菜の花エコ担当,総務・営業,ChatGPT"></textarea>
+  <div class="note">名簿に書いた担当者は、報告が無くても「報告なし」としてボードに並びます。書かなくても、ポストボックスの「Bot担当者名」から自動で並びます。</div>
+  <div class="check"><input type="checkbox" id="boardOn"><span>広い画面（Macなど）では作業状況ボードを表示する</span></div>
   <label>ハヤトの顔（キャラクター画像）</label>
   <div class="avrow"><img id="avPreview" alt=""><button id="avPick">画像を変える</button><button id="avReset">元に戻す</button></div>
   <input type="file" id="avFile" accept="image/*" style="display:none">
@@ -297,7 +375,7 @@ const JOBS = [
     inputs:{},
     source:'天気（Open-Meteo）、台帳「予定」（今日）「作業記録」（昨日）「故障記録」（未対応）',
     reply:'次の順で、話し言葉5〜6文で報告：①あいさつと今日の天気、農作業（散布・稲刈り・ドローン）への一言 ②今日の予定（無ければ「入っていません」）' +
-          '③昨日の作業を短く ④未対応の故障があれば「件数」と新しいものから1〜2件（件数が0なら触れない） ⑤前向きな一言。「注意」に書かれた取れなかった情報は、取れなかったと正直に言う',
+          '③昨日の作業を短く ④未対応の故障があれば「件数」と新しいものから1〜2件（件数が0なら触れない） ⑤「AIとGrokBotの作業状況」があれば1〜2文で（承認待ちと報告が止まっている担当者を優先） ⑥前向きな一言。「注意」に書かれた取れなかった情報は、取れなかったと正直に言う',
     run: async () => {
       const data = { 今日: ymd(0), 昨日: ymd(-1) }, notes = [];
       try{ data.天気 = weatherText(await getWeather()); }catch(e){ notes.push('天気が取れませんでした'); }
@@ -311,6 +389,9 @@ const JOBS = [
         if(fault.status==='fulfilled') data.未対応の故障 = { 件数:fault.value.total, 新しい順:fault.value.rows.map(faultLine) };
         else notes.push('「故障記録」シートが読めません（GASでsetupを実行すると作られます）');
       }else notes.push('台帳がつながっていないので、予定と作業はわかりません');
+      if(gasReady() && gasInfo.notion){
+        try{ const o = await loadOps(true); if(o.ops) data.AIとGrokBotの作業状況 = o.ops.summary; }catch(e){}
+      }
       if(notes.length) data.注意 = notes;
       return { ok:true, data };
     }
@@ -340,6 +421,29 @@ const JOBS = [
     },
     ok: r => '故障メモを、台帳の「故障記録」' + r.row + '行目に残しました。' + (r.extraLinks.length ? '写真も保存しました。' : ''),
     ng: e => '故障メモを残せませんでした。' + e + (/見つかりません/.test(e) ? '　GASでsetupをもう一度実行すると「故障記録」シートが作られます。' : '')
+  },
+
+  /* ---------- 作業状況（read）：Grok Bot・AI幹部・承認待ち ---------- */
+  {
+    id:'ops_status', name:'作業状況', icon:'📡', type:'read',
+    when:'Grok BotやAI幹部の作業状況、報告が止まっている担当者、承認待ち・回答待ちの案件を聞かれた時（例：Botの状況は？／止まっているのは誰？／承認待ちを読んで／Claudeの回答待ちは？）',
+    hint:/bot|ボット|grok|作業状況|報告状況|止まって|承認待ち|回答待ち|ポストボックス|担当者/i,
+    inputs:{ focus:{ label:'知りたいこと', desc:'全体／承認待ち／止まっている担当者／担当者名やAI名（省略で全体）' } },
+    source:'Notion「ポストボックス（共通台帳）」',
+    ready: () => gasReady() && gasInfo.notion,
+    reply:'最初に「要約」を話し言葉で伝え、focus があればそれに絞って説明する。件名は短く言い換えてよい',
+    run: async () => {
+      const o = await loadOps(true);
+      if(!o.ops) return { ok:false, error:o.error || 'ポストボックスを読めませんでした' };
+      const x = o.ops;
+      return { ok:true, where:'Notion ポストボックス', url:o.url, data:{
+        要約:x.summary,
+        承認待ち:x.approvals.slice(0, 6).map(i => i.件名 + '（' + (i.Bot || i.主担当AI || '担当未記入') + (i.期限 ? '、期限' + shortDate(i.期限) : '') + '）'),
+        報告が止まっている担当者:x.bots.filter(b => b.h >= 24).map(b => b.name + '：' + (b.last ? ago(b.last) : '報告なし')),
+        AIの回答待ち:x.ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件'),
+        担当者ごと:x.bots.map(b => ({ 名前:b.name, 上司:b.boss, いまの仕事:b.cur ? b.cur.件名 : 'なし', 状態:b.cur ? b.cur.ステータス : '', 最終報告:b.last ? ago(b.last) : '報告なし' })),
+        担当者未記入の案件:x.unassigned.length, 進行中:x.openCount, 完了7日:x.weekDone } };
+    }
   },
 
   /* ---------- 故障履歴を調べる（read） ---------- */
@@ -1284,6 +1388,7 @@ function openSettings(){
   $('persona').value = S.persona; $('speakOn').checked = S.speakOn; $('rate').value = S.rate;
   loadVoices(10); $('pitch').value = S.pitch;
   $('gasUrl').value = S.gasUrl; $('gasSecret').value = S.gasSecret; $('gasMsg').textContent = '';
+  $('roster').value = S.roster || ''; $('boardOn').checked = S.boardOn !== false;
   dlg.showModal();
 }
 $('setBtn').addEventListener('click', openSettings);
@@ -1317,8 +1422,10 @@ $('saveSet').addEventListener('click', () => {
   S.speakOn = $('speakOn').checked; S.rate = $('rate').value;
   S.voice = $('voice').value; S.pitch = $('pitch').value;
   S.gasUrl = $('gasUrl').value.trim(); S.gasSecret = $('gasSecret').value.trim(); schemaCache = null; S.schema = null;
+  S.roster = $('roster').value; S.boardOn = $('boardOn').checked;
   save(); dlg.close();
   addMsg('設定を保存しました。', 'sys');
+  applyWide(); if(isWide()) loadOps(true);
 });
 $('clearBtn').addEventListener('click', () => {
   if(!confirm('会話の履歴を消しますか？（記録先の一覧は残ります）')) return;
@@ -1435,7 +1542,181 @@ function stopMouth(){ talking = false; clearTimeout(mouthTimer); showFrame('clos
   }, 2500 + Math.random()*3500);
 })();
 
+/* ========== 13. 作業状況ボード（Notion ポストボックス → 広い画面の右側） ========== */
+const AIS = [
+  { name:'ChatGPT',    role:'総務・営業部長',       dept:'総務・営業',       mark:'GP', ans:true },
+  { name:'Claude',     role:'開発・文書・検証部長', dept:'開発・文書・検証', mark:'CL', ans:true },
+  { name:'Gemini',     role:'企画・デザイン係長',   dept:'企画・デザイン',   mark:'GE' },
+  { name:'Copilot',    role:'経理・データ分析係長', dept:'経理・データ分析', mark:'CO' },
+  { name:'Grok',       role:'X・SNS情報探索係長',   dept:'国内SNS',          mark:'GR', ans:true },
+  { name:'Felo',       role:'海外SNS情報探索係長',  dept:'海外SNS',          mark:'FE' },
+  { name:'Perplexity', role:'企業情報係長',         dept:'企業情報',         mark:'PX' }
+];
+const DEPT_BOSS = Object.fromEntries(AIS.map(a => [a.dept, a.name]));
+const PIPE = ['新規','担当振分','分析中','検証中','承認待ち','実行中'];
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const hoursAgo = iso => iso ? (Date.now() - new Date(iso).getTime()) / 36e5 : Infinity;
+function ago(iso){
+  if(!iso) return '—';
+  const h = hoursAgo(iso);
+  return h < 1 ? Math.max(1, Math.round(h * 60)) + '分前' : h < 24 ? Math.round(h) + '時間前' : Math.floor(h / 24) + '日前';
+}
+function clockText(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  const day = d.toLocaleDateString('ja-JP', { timeZone:'Asia/Tokyo', year:'numeric', month:'2-digit', day:'2-digit' });
+  const t = d.toLocaleTimeString('ja-JP', { timeZone:'Asia/Tokyo', hour:'2-digit', minute:'2-digit' });
+  return day === ymd(0) ? t : Number(day.slice(5,7)) + '/' + Number(day.slice(8,10)) + ' ' + t;
+}
+const shortDate = iso => { const k = String(iso || '').slice(0, 10); return k ? Number(k.slice(5,7)) + '/' + Number(k.slice(8,10)) : ''; };
+const fresh = h => h < 24 ? 'fresh' : h < 72 ? 'warn' : 'stale';
+function parseRoster(t){
+  return String(t || '').split(/\n/).map(l => l.split(/[,，、\t]/).map(x => x.trim())).filter(a => a[0]).map(a => ({ name:a[0], dept:a[1] || '', boss:a[2] || '' }));
+}
+function buildOps(items){
+  items = items.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
+  const todayISO = ymd(0).replace(/\//g, '-');
+  const open = items.filter(i => i.ステータス !== '完了');
+  const weekDone = items.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7);
+  const pipe = PIPE.map(st => ({ st, n:items.filter(i => i.ステータス === st).length, cls: st === '承認待ち' ? 'warn' : st === '実行中' ? 'run' : '' }));
+  pipe.push({ st:'完了（7日）', n:weekDone.length, cls:'done' });
+  pipe.push({ st:'差し戻し・保留・エラー', n:items.filter(i => ['差し戻し','保留','エラー'].includes(i.ステータス)).length, cls:'other' });
+  const ais = AIS.map(a => {
+    const inv = items.filter(i => i.主担当AI === a.name || i.確認担当AI === a.name || i.担当AI拡張 === a.name || i.部門 === a.dept);
+    const act = inv.filter(i => i.ステータス !== '完了');
+    const wait = a.ans ? act.filter(i => ['新規','担当振分','分析中','検証中'].includes(i.ステータス) && (i.主担当AI === a.name || i.確認担当AI === a.name) && !(i.回答 || {})[a.name]).length : null;   // AIの出番の段階だけ数える
+    const last = inv.reduce((m, i) => (!m || i.更新 > m) ? i.更新 : m, '');
+    return Object.assign({}, a, { active:act.length, wait, last });
+  });
+  const roster = parseRoster(S.roster);
+  const names = [...new Set(roster.map(x => x.name).concat(items.map(i => i.Bot).filter(Boolean)))];
+  const bots = names.map(n => {
+    const rr = roster.find(x => x.name === n) || {};
+    const mine = items.filter(i => i.Bot === n);
+    const act = mine.filter(i => i.ステータス !== '完了');
+    const cur = act[0] || mine[0] || null;            // GASが更新の新しい順で返す
+    const last = mine.reduce((m, i) => (!m || i.更新 > m) ? i.更新 : m, '');
+    const dept = rr.dept || (cur && cur.部門) || '';
+    const boss = rr.boss || (cur && cur.主担当AI && cur.主担当AI !== 'なし' ? cur.主担当AI : '') || DEPT_BOSS[dept] || '';
+    return { name:n, dept, boss, cur, last, h:hoursAgo(last), active:act.length,
+             done:mine.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7).length };
+  }).sort((a, b) => a.h - b.h);
+  const unassigned = open.filter(i => !i.Bot);
+  const approvals = items.filter(i => i.ステータス === '承認待ち' || (i.承認要否 && !i.承認済み && i.ステータス !== '完了'));
+  const due = open.filter(i => i.期限 && i.期限.slice(0, 10) <= todayISO);
+  const say = [];
+  say.push(approvals.length ? '承認待ちが' + approvals.length + '件あります。' : '承認待ちはありません。');
+  if(bots.length){
+    say.push('Grok Botは' + bots.length + '名中' + bots.filter(b => b.h < 24).length + '名が24時間以内に報告しています。');
+    const stale = bots.filter(b => b.h >= 72 && b.last), never = bots.filter(b => !b.last);
+    if(stale.length) say.push(stale.map(b => b.name).join('、') + 'は3日以上報告がありません。');
+    if(never.length) say.push(never.map(b => b.name).join('、') + 'は、まだ報告がありません。');
+  }
+  const waits = ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件');
+  if(waits.length) say.push('AIの回答待ちは、' + waits.join('、') + 'です。');
+  if(due.length) say.push('期限が今日までの案件が' + due.length + '件あります。');
+  if(unassigned.length) say.push('担当者が未記入の案件が' + unassigned.length + '件あります。');
+  return { pipe, ais, bots, unassigned, approvals, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
+}
+
+let OPS = null, opsBusy = null;
+const isWide = () => S.boardOn !== false && window.matchMedia('(min-width:1100px)').matches;
+function applyWide(){ document.body.classList.toggle('wide', isWide()); }
+async function loadOps(force){
+  if(opsBusy) return opsBusy;
+  if(!force && OPS && Date.now() - OPS.t < 60 * 1000){ renderDash(); return OPS; }
+  opsBusy = (async () => {
+    const res = { t:Date.now() };
+    if(!gasReady()){ res.error = 'setup-gas'; }
+    else{
+      try{ await getSchema(); }catch(e){}
+      if(!gasInfo.notion) res.error = 'setup-notion';
+      else{
+        try{ const r = await gas('postbox', { limit:300 }); res.items = r.items; res.url = r.url; res.ops = buildOps(r.items); }
+        catch(e){ res.error = e.message; }
+      }
+      const [plan, fault] = await Promise.allSettled([
+        gas('search', { sheet:'予定', dateFrom:ymd(0), dateTo:ymd(0), top:5 }),
+        searchFaults({ status:'未対応', top:1 }) ]);
+      res.field = { plan: plan.status === 'fulfilled' ? plan.value.total : null, fault: fault.status === 'fulfilled' ? fault.value.total : null,
+                    faultTop: fault.status === 'fulfilled' && fault.value.rows[0] ? fault.value.rows[0].機械 : '' };
+    }
+    try{ res.wx = await getWeather(); }catch(e){}
+    OPS = res; renderDash();
+    return res;
+  })().finally(() => { opsBusy = null; });
+  return opsBusy;
+}
+function renderDash(){
+  const el = $('dash'); if(!el || !isWide()) return;
+  const o = OPS;
+  const head = '<div class="d-head"><h2>GROK BOT OPERATIONS</h2><span class="d-src">Notion ポストボックス（共通台帳）から自動更新</span>' +
+    '<div class="d-right"><span class="d-src mono">最終更新 ' + (o ? clockText(new Date(o.t).toISOString()) : '—') + '</span>' +
+    '<button class="d-btn" id="dRefresh" type="button">↻ 今すぐ更新</button></div></div>';
+  if(!o){ el.innerHTML = head + '<div class="d-card"><p class="d-empty">読み込んでいます…</p></div>'; bindDash(); return; }
+  let body = '';
+  if(o.error === 'setup-gas'){
+    body = '<div class="d-card d-setup"><h3>ボードの準備</h3><p>設定でGASのURLと合言葉を入れると、ここにGrok BotとAIの作業状況が出ます。</p></div>';
+  }else if(o.error === 'setup-notion'){
+    body = '<div class="d-card d-setup"><h3>Notionとつなぐと表示されます</h3><p>① GASの18行目 <span class="mono">NOTION_TOKEN</span> に、Notionインテグレーションのシークレットを入れる<br>' +
+           '② Notionの「ポストボックス（共通台帳）」のページで「…」→「接続」からそのインテグレーションを追加<br>③ GASを「新バージョン」でデプロイし直す</p></div>';
+  }else if(o.error){
+    const hint = /知らない依頼/.test(o.error) ? '（GASがまだ古い版です。最新の hayato-gas.gs に貼り替えて、「新バージョン」でデプロイしてください）'
+               : /object_not_found|Could not find|見つかりません/i.test(o.error) ? '（ポストボックスのページで「…」→「接続」から、GASのインテグレーションを追加してください）' : '';
+    body = '<div class="d-card d-setup"><h3>ポストボックスを読めませんでした</h3><p>' + esc(String(o.error).replace(/^Error:\s*/, '')) + esc(hint) + '</p></div>';
+  }else{
+    const x = o.ops;
+    body += '<div class="d-card d-say"><span class="d-lbl mono">HAYATO SAYS</span><p>' + esc(x.summary) + '</p><button class="d-btn" id="dSpeak" type="button">読み上げ</button></div>';
+    body += '<div class="d-card"><h3>案件の流れ<span class="d-note">いま何件がどこにあるか</span><span class="d-aside mono">進行中 ' + x.openCount + ' ／ 完了（7日） ' + x.weekDone + '</span></h3><div class="d-pipe">' +
+      x.pipe.map(p => '<div class="d-tile ' + p.cls + (p.n ? '' : ' zero') + '"><div class="k">' + esc(p.st) + '</div><div class="v mono">' + p.n + '</div></div>').join('') + '</div></div>';
+    const waitAll = x.ais.reduce((s, a) => s + (a.wait || 0), 0);
+    body += '<div class="d-card"><h3>AI幹部の動き<span class="d-note">担当中の案件と、回答欄が空いている件数</span><span class="d-aside mono' + (waitAll ? ' hl' : '') + '">回答待ち 合計 ' + waitAll + '</span></h3><div class="d-ai">' +
+      x.ais.map(a => '<div class="d-aic"><div class="nm"><span class="mk mono">' + a.mark + '</span>' + esc(a.name) + '</div><div class="rl">' + esc(a.role) + '</div>' +
+        '<div class="ct mono">担当 ' + a.active + '</div>' + (a.wait == null ? '' : '<div class="ct mono ' + (a.wait ? 'hl' : '') + '">回答待ち ' + a.wait + '</div>') +
+        '<div class="ls mono">最後 ' + (a.last ? clockText(a.last) : '—') + '</div></div>').join('') + '</div></div>';
+    body += '<div class="d-legend"><h3>Grok Bot 担当者ごとの今</h3><span><span class="dot fresh"></span> 24時間以内に報告</span><span><span class="dot warn"></span> 1〜3日報告なし</span><span><span class="dot stale"></span> 3日以上報告なし</span></div>';
+    const cards = x.bots.map(b => {
+      const f = fresh(b.h), c = b.cur, tag = c && c.url ? 'a' : 'div';
+      return '<' + tag + (tag === 'a' ? ' href="' + esc(c.url) + '" target="_blank" rel="noopener"' : '') + ' class="d-bot' + (f === 'stale' ? ' stale' : '') + (c && c.ステータス === '承認待ち' ? ' appr' : '') + '">' +
+        '<div class="top"><span class="dot ' + f + '"></span><span class="nm">' + esc(b.name) + '</span><span class="boss">' + (b.boss ? '上司 ' + esc(b.boss) : '') + '</span></div>' +
+        '<div class="dp">' + esc(b.dept || '部門 未記入') + '</div>' +
+        '<div class="job">' + (c ? esc(c.件名) : 'まだ報告がありません') + '</div>' +
+        (c ? '<div class="st"><span class="pill ' + esc(c.ステータス) + '">' + esc(c.ステータス || '—') + '</span>' + (c.期限 ? '<span>期限 ' + esc(shortDate(c.期限)) + '</span>' : '') + (f !== 'fresh' && b.last ? '<span class="hl">' + esc(ago(b.last)) + 'から報告なし</span>' : '') + '</div>' : '') +
+        '<div class="ft mono"><span>報告 ' + (b.last ? clockText(b.last) + '（' + ago(b.last) + '）' : 'なし') + '</span><span>進行' + b.active + ' ・ 完了' + b.done + '</span></div></' + tag + '>';
+    });
+    if(x.unassigned.length){
+      cards.push('<div class="d-bot stale"><div class="top"><span class="dot warn"></span><span class="nm">担当者 未記入</span></div><div class="dp">Bot担当者名が空の案件</div>' +
+        '<div class="job">' + x.unassigned.length + '件：' + esc(x.unassigned.slice(0, 2).map(i => i.件名).join('／')) + (x.unassigned.length > 2 ? ' ほか' : '') + '</div>' +
+        '<div class="ft"><span>Notionで「Bot担当者名」を入れると、担当者ごとに並びます</span></div></div>');
+    }
+    body += '<div class="d-bots">' + (cards.join('') || '<div class="d-card"><p class="d-empty">まだ担当者がいません。設定の「Grok Bot 名簿」に書くか、ポストボックスの「Bot担当者名」を入れてください。</p></div>') + '</div>';
+    const row = (i, left) => '<a href="' + esc(i.url) + '" target="_blank" rel="noopener"><span class="w mono">' + esc(left) + '</span><span class="t">' + esc(i.件名) +
+      '<span class="s"> ／ ' + esc(i.Bot || i.主担当AI || '担当未記入') + '</span></span><span class="pill ' + esc(i.ステータス) + '">' + esc(i.ステータス) + '</span></a>';
+    body += '<div class="d-two">' +
+      '<div class="d-card"><h3><span class="dot warn"></span>承認待ち<span class="d-aside mono">' + x.approvals.length + '件</span></h3><div class="d-list">' +
+        (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, i.期限 ? '期限 ' + shortDate(i.期限) : '期限なし')).join('') : '<p class="d-empty">ありません</p>') + '</div></div>' +
+      '<div class="d-card"><h3><span class="dot fresh"></span>最新の動き<span class="d-aside mono">新しい順</span></h3><div class="d-list">' +
+        (x.latest.length ? x.latest.map(i => row(i, clockText(i.更新))).join('') : '<p class="d-empty">まだ案件がありません</p>') + '</div></div></div>';
+  }
+  const f = o.field || {}, w = o.wx;
+  const wxTxt = w ? (WX_CODE[w.current.weather_code] || '') + ' ' + Math.round(w.daily.temperature_2m_max[0]) + '°/' + Math.round(w.daily.temperature_2m_min[0]) + '° ・ 降水 ' + w.daily.precipitation_probability_max[0] + '%' : '天気 —';
+  body += '<div class="d-field"><span class="k">現場</span><span>' + esc(wxTxt) + '</span>' +
+    (f.plan != null ? '<span>今日の予定 ' + f.plan + '件</span>' : '') +
+    (f.fault != null ? '<span class="' + (f.fault ? 'hl' : '') + '">未対応の故障 ' + f.fault + '件' + (f.faultTop ? '（' + esc(f.faultTop) + (f.fault > 1 ? 'ほか' : '') + '）' : '') + '</span>' : '') + '</div>';
+  body += '<div class="d-foot mono">5分ごとに自動で更新します。カードを押すとNotionのページが開きます。</div>';
+  el.innerHTML = head + body;
+  bindDash();
+}
+function bindDash(){
+  const r = $('dRefresh'); if(r) r.onclick = () => { OPS = null; renderDash(); loadOps(true); };
+  const sp = $('dSpeak'); if(sp) sp.onclick = () => { if(OPS && OPS.ops) speak(OPS.ops.summary, 'ja', true); };
+}
+window.addEventListener('resize', () => { const was = document.body.classList.contains('wide'); applyWide(); if(!was && isWide()) loadOps(); });
+setInterval(() => { if(isWide() && !document.hidden) loadOps(true); }, 5 * 60 * 1000);
+
 /* ========== 起動 ========== */
+applyWide();
+if(isWide()) setTimeout(() => loadOps(true), 300);
 applyAvatar();
 showWeatherBar();
 if(gasReady()) refreshSchema().catch(() => {});   // 起動と同時にGASを起こしておく（最初の返事を速く）
