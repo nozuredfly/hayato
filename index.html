@@ -427,7 +427,7 @@ const JOBS = [
       const r = await research(a.query, ctx.photo);
       S.lastDoc = { title:r.title, content:r.detail + (r.sources.length ? '\n\n## 出典\n' + r.sources.map(x => '- ' + (x.title||'') + ' ' + x.uri).join('\n') : '') };
       save();
-      return { ok:true, data:{ 題名:r.title, 要約:r.say, 出典数:r.sources.length }, display:{ title:r.title, detail:r.detail, sources:r.sources } };
+      return { ok:true, data:{ 題名:r.title, 要約:r.say, 出典数:r.sources.length, ネット検索:r.usedSearch ? 'できた' : 'できなかった（AIの知識で回答）' }, display:{ title:r.title, detail:r.detail, sources:r.sources } };
     }
   },
 
@@ -584,6 +584,7 @@ const ROUTER_RULES =
 '調べる・集計する仕事は、道具の結果だけを使ってすぐ答えてください。' +
 '登録・保存・送信の仕事は、道具を呼ぶとハヤトの画面に確認カードが出て、ユーザーが確認してから実行されます。呼んだ時点ではまだ実行されていません。' +
 '必要な入力が足りない時は、道具を呼ぶ前に聞き返してください。' +
+'道具が失敗した時は、推測で理由を作らず、結果のerrorに書かれた理由を短くそのまま伝えてください。「調べて」と言われたら、前に失敗していても必ずもう一度 web_research を呼んでください。' +
 '道具を使わずに「記録しました」「送りました」と言ってはいけません。行番号やリンクなど、道具の結果に無いことを作らないでください。' +
 'インドネシア語で伝えたい・訳してと頼まれたら、日本語の説明のあとに「【ID】」と書き、その後ろにインドネシア語の文だけを書いてください。';
 const PHOTO_RULES =
@@ -1016,13 +1017,54 @@ const SEARCH_RULES =
 'これはGoogle検索を使って調べる依頼です。必ず検索して、信頼できる情報をもとに答えてください。出力は必ず次の3つの見出しの形にしてください。\n' +
 '【題名】20字以内の題名\n【話す】声で読み上げる要約。話し言葉で2〜3文。記号や箇条書きは使わない\n' +
 '【詳しく】詳しい内容。「# 見出し」「- 箇条書き」「1. 手順」を使い、分量・時間・温度などは具体的な数字で。最後に参考にしたサイト名を書く';
+// ネット検索：使えるモデルを順に試す（検索機能が使えないモデル・無料枠切れでも止まらない）
+const SEARCH_PREF = ['gemini-3.8-flash','gemini-3.6-flash','gemini-2.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-flash-latest'];
+let modelListCache = null;
+async function listModels(){
+  if(modelListCache) return modelListCache;
+  try{
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=' + encodeURIComponent(S.apiKey));
+    const d = await r.json();
+    modelListCache = (d.models || []).filter(x => (x.supportedGenerationMethods || []).includes('generateContent')).map(x => String(x.name).replace(/^models\//, ''));
+  }catch(e){ modelListCache = []; }
+  return modelListCache;
+}
+async function rawCall(model, body){
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(S.apiKey);
+  const t0 = Date.now();
+  try{
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(errText(r.status, data));
+    return data;
+  }finally{ perf.ai += Date.now() - t0; }
+}
 async function research(query, photo){
   const parts = [{ text:query }];
   if(photo) parts.unshift({ inlineData:{ mimeType:'image/jpeg', data:photo.data } });
-  const data = await gemini({
-    systemInstruction:{ parts:[{ text:'現在日時：' + nowText() + '\n' + SEARCH_RULES }] },
-    contents:[{ role:'user', parts }], tools:[{ google_search:{} }],
-    generationConfig:{ temperature:0.5, maxOutputTokens:3000, thinkingConfig:{ thinkingBudget:0 } } });
+  const sys = { parts:[{ text:'現在日時：' + nowText() + '\n' + SEARCH_RULES }] };
+  const avail = await listModels();
+  const order = [S.model].concat(SEARCH_PREF.filter(m => !avail.length || avail.includes(m)));
+  const tried = [], errs = [];
+  let data = null, usedSearch = true;
+  for(const m of order){
+    if(tried.includes(m) || tried.length >= 3) continue;
+    tried.push(m);
+    setState('thinking', '🔍 調べています…' + (tried.length > 1 ? '（' + m + '）' : ''));
+    try{
+      data = await rawCall(m, { systemInstruction:sys, contents:[{ role:'user', parts }], tools:[{ google_search:{} }],
+                                generationConfig:{ temperature:0.5, maxOutputTokens:4000 } });   // 検索の時は「考え込み」の指定を付けない
+      break;
+    }catch(e){ errs.push(m + '：' + e.message); data = null; }
+  }
+  if(!data){   // どのモデルでも検索できない → 検索なしでAIの知識で答え、そのことをはっきり書く
+    usedSearch = false;
+    try{
+      data = await rawCall(S.model, { systemInstruction:{ parts:[{ text:sys.parts[0].text + '\n今はネット検索が使えません。あなたの知識だけで答え、【話す】の最初に「ネットで検索できなかったので、知っている範囲で答えます。」と入れてください。' }] },
+                                      contents:[{ role:'user', parts }], generationConfig:{ temperature:0.5, maxOutputTokens:4000 } });
+    }catch(e){ throw new Error('ネット検索ができませんでした（' + errs.join(' ／ ') + '）'); }
+    addMsg('⚠️ ネット検索ができませんでした：' + errs.join(' ／ '), 'sys err');
+  }
   const cand = data.candidates?.[0] || {};
   const raw = (cand.content?.parts || []).map(p => p.text || '').join('').trim();
   if(!raw) throw new Error('調べた結果をまとめられませんでした');
@@ -1031,7 +1073,8 @@ async function research(query, photo){
     title:  pick('題名', '【話す】|【詳しく】') || firstLine(query),
     say:    pick('話す', '【詳しく】') || raw.replace(/[#*\-]/g,'').slice(0, 150),
     detail: pick('詳しく', '$^') || raw,
-    sources:(cand.groundingMetadata?.groundingChunks || []).filter(c => c.web).map(c => ({ uri:c.web.uri, title:c.web.title }))
+    sources:(cand.groundingMetadata?.groundingChunks || []).filter(c => c.web).map(c => ({ uri:c.web.uri, title:c.web.title })),
+    usedSearch
   };
 }
 
