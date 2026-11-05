@@ -1114,24 +1114,50 @@ async function interpret(text, from){
 
 /* ========== 7. 声で返事（読み上げ） ========== */
 function speak(text, lang, noFollow){
-  const done = () => { stopMouth(); setState('', IDLE); if(!noFollow) afterSpeak(); };
+  const done = () => { clearTimeout(speakWatch); stopMouth(); setState('', IDLE); if(!noFollow) afterSpeak(); };
   if(!S.speakOn || !('speechSynthesis' in window)){ setState('', IDLE); if(!noFollow) afterSpeak(); return; }
-  speechSynthesis.cancel();
+  if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();   // 何も話していない時は cancel しない（iPhoneで声が出なくなるため）
   let segs;
   if(lang) segs = [{ t:text, lang }];
   else { const i = text.indexOf('【ID】'); segs = i >= 0 ? [{ t:text.slice(0, i), lang:'ja' }, { t:text.slice(i + 4), lang:'id' }] : [{ t:text, lang:'ja' }]; }
-  segs = segs.filter(x => x.t.trim());
-  if(!segs.length){ done(); return; }
-  segs.forEach((sg, k) => {
-    const u = new SpeechSynthesisUtterance(sg.t.replace(/[#*_`>|\-]/g, ' '));
+  // 長い文は「。」などで区切って、短いかたまりで読む（途中で止まるのを防ぐ）
+  const chunks = [];
+  segs.forEach(sg => {
+    const parts = sg.t.replace(/[#*_`>|\-]/g, ' ').split(/(?<=[。！？!?\n])/).map(x => x.trim()).filter(Boolean);
+    let buf = '';
+    parts.forEach(pt => { if((buf + pt).length > 120 && buf){ chunks.push({ t:buf, lang:sg.lang }); buf = ''; } buf += pt; });
+    if(buf) chunks.push({ t:buf, lang:sg.lang });
+  });
+  if(!chunks.length){ done(); return; }
+  let started = false;
+  chunks.forEach((c, k) => {
+    const u = new SpeechSynthesisUtterance(c.t);
     u.rate = parseFloat(S.rate);
-    if(sg.lang === 'id'){ u.lang = 'id-ID'; const v = idVoice(); if(v) u.voice = v; }
+    if(c.lang === 'id'){ u.lang = 'id-ID'; const v = idVoice(); if(v) u.voice = v; }
     else { u.lang = 'ja-JP'; u.pitch = parseFloat(S.pitch); const v = pickVoice(S.voice); if(v) u.voice = v; }
-    if(k === 0) u.onstart = () => { setState('speaking', '話しています…（タップで止める）'); startMouth(); };
-    if(k === segs.length - 1) u.onend = u.onerror = done;
+    u.onstart = () => { if(!started){ started = true; clearTimeout(speakWatch); setState('speaking', '話しています…（タップで止める）'); startMouth(); } };
+    if(k === chunks.length - 1) u.onend = done;
+    u.onerror = (e) => { if(e && e.error === 'interrupted' && k < chunks.length - 1) return; done(); };
     speechSynthesis.speak(u);
   });
+  // 3秒たっても声が始まらない時：読み上げを立て直して、案内を出す
+  clearTimeout(speakWatch);
+  speakWatch = setTimeout(() => {
+    if(started) return;
+    try{ speechSynthesis.cancel(); speechSynthesis.resume(); }catch(e){}
+    done();
+    if(!speakHintShown){ speakHintShown = true;
+      addMsg('🔇 声が出ませんでした。iPhoneは消音モード（横のスイッチ）だと読み上げも消えます。消音を解除して、ハヤトの顔を一度タップしてからもう一度どうぞ。', 'sys err'); }
+  }, 3000);
 }
+let speakWatch = null, speakHintShown = false, speechUnlocked = false;
+// iPhoneは「画面に触れた直後」でないと声を出させないので、最初のタップで読み上げの許可を取っておく
+function unlockSpeech(){
+  if(speechUnlocked || !('speechSynthesis' in window)) return;
+  speechUnlocked = true;
+  try{ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }catch(e){}
+}
+['touchend','click','keydown'].forEach(ev => document.addEventListener(ev, unlockSpeech, { once:false, passive:true }));
 function idVoice(){
   if(!('speechSynthesis' in window)) return null;
   return speechSynthesis.getVoices().find(v => v.lang && v.lang.replace('_','-').toLowerCase().startsWith('id')) || null;
