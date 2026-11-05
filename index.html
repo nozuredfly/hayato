@@ -145,7 +145,7 @@ dialog textarea{min-height:90px;resize:vertical}
 .d-aic .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
 .d-aic .mk{width:26px;height:26px;border-radius:50%;border:1px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--cyan)}
 .d-aic .rl{font-size:11px;color:var(--sub)} .d-aic .ct{font-size:12px} .d-aic .ls{font-size:11px;color:var(--sub)}
-.hl{color:#ffcf86}
+.hl{color:#ffcf86} .d-late{color:#ff8a7a;font-weight:700}
 .d-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin:4px 0 10px}
 .d-legend h3{font-size:14px;color:var(--text)}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -438,7 +438,7 @@ const JOBS = [
       const x = o.ops;
       return { ok:true, where:'Notion ポストボックス', url:o.url, data:{
         要約:x.summary,
-        承認待ち:x.approvals.slice(0, 6).map(i => i.件名 + '（' + (i.Bot || i.主担当AI || '担当未記入') + (i.期限 ? '、期限' + shortDate(i.期限) : '') + '）'),
+        承認待ち:x.approvals.slice(0, 6).map(i => i.件名 + '（' + (i.Bot || i.主担当AI || '担当未記入') + (i.期限 ? '、' + (i.期限.slice(0, 10) < ymd(0).replace(/\//g, '-') ? '期限切れ' : '期限') + shortDate(i.期限) : '') + '）'),
         報告が止まっている担当者:x.bots.filter(b => b.h >= 24).map(b => b.name + '：' + (b.last ? ago(b.last) : '報告なし')),
         AIの回答待ち:x.ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件'),
         担当者ごと:x.bots.map(b => ({ 名前:b.name, 上司:b.boss, いまの仕事:b.cur ? b.cur.件名 : 'なし', 状態:b.cur ? b.cur.ステータス : '', 最終報告:b.last ? ago(b.last) : '報告なし' })),
@@ -1573,6 +1573,13 @@ const fresh = h => h < 24 ? 'fresh' : h < 72 ? 'warn' : 'stale';
 function parseRoster(t){
   return String(t || '').split(/\n/).map(l => l.split(/[,，、\t]/).map(x => x.trim())).filter(a => a[0]).map(a => ({ name:a[0], dept:a[1] || '', boss:a[2] || '' }));
 }
+function dueLabel(i){
+  if(!i.期限) return '期限なし';
+  const t = ymd(0).replace(/\//g, '-'), d = i.期限.slice(0, 10);
+  if(d < t) return '<span class="d-late">期限切れ ' + esc(shortDate(i.期限)) + '</span>';
+  if(d === t) return '<span class="hl">今日まで</span>';
+  return '期限 ' + esc(shortDate(i.期限));
+}
 function buildOps(items){
   items = items.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
   const todayISO = ymd(0).replace(/\//g, '-');
@@ -1604,6 +1611,7 @@ function buildOps(items){
   const unassigned = open.filter(i => !i.Bot);
   const approvals = items.filter(i => i.ステータス === '承認待ち' || (i.承認要否 && !i.承認済み && i.ステータス !== '完了'));
   const due = open.filter(i => i.期限 && i.期限.slice(0, 10) <= todayISO);
+  const overdue = due.filter(i => i.期限.slice(0, 10) < todayISO), dueToday = due.filter(i => i.期限.slice(0, 10) === todayISO);
   const say = [];
   say.push(approvals.length ? '承認待ちが' + approvals.length + '件あります。' : '承認待ちはありません。');
   if(bots.length){
@@ -1614,7 +1622,8 @@ function buildOps(items){
   }
   const waits = ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件');
   if(waits.length) say.push('AIの回答待ちは、' + waits.join('、') + 'です。');
-  if(due.length) say.push('期限が今日までの案件が' + due.length + '件あります。');
+  if(overdue.length) say.push('期限切れの案件が' + overdue.length + '件あります。');
+  if(dueToday.length) say.push('今日が期限の案件が' + dueToday.length + '件あります。');
   if(unassigned.length) say.push('担当者が未記入の案件が' + unassigned.length + '件あります。');
   return { pipe, ais, bots, unassigned, approvals, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
 }
@@ -1681,7 +1690,7 @@ function renderDash(){
         '<div class="top"><span class="dot ' + f + '"></span><span class="nm">' + esc(b.name) + '</span><span class="boss">' + (b.boss ? '上司 ' + esc(b.boss) : '') + '</span></div>' +
         '<div class="dp">' + esc(b.dept || '部門 未記入') + '</div>' +
         '<div class="job">' + (c ? esc(c.件名) : 'まだ報告がありません') + '</div>' +
-        (c ? '<div class="st"><span class="pill ' + esc(c.ステータス) + '">' + esc(c.ステータス || '—') + '</span>' + (c.期限 ? '<span>期限 ' + esc(shortDate(c.期限)) + '</span>' : '') + (f !== 'fresh' && b.last ? '<span class="hl">' + esc(ago(b.last)) + 'から報告なし</span>' : '') + '</div>' : '') +
+        (c ? '<div class="st"><span class="pill ' + esc(c.ステータス) + '">' + esc(c.ステータス || '—') + '</span>' + (c.期限 ? '<span>' + dueLabel(c) + '</span>' : '') + (f !== 'fresh' && b.last ? '<span class="hl">' + esc(ago(b.last)) + 'から報告なし</span>' : '') + '</div>' : '') +
         '<div class="ft mono"><span>報告 ' + (b.last ? clockText(b.last) + '（' + ago(b.last) + '）' : 'なし') + '</span><span>進行' + b.active + ' ・ 完了' + b.done + '</span></div></' + tag + '>';
     });
     if(x.unassigned.length){
@@ -1690,13 +1699,13 @@ function renderDash(){
         '<div class="ft"><span>Notionで「Bot担当者名」を入れると、担当者ごとに並びます</span></div></div>');
     }
     body += '<div class="d-bots">' + (cards.join('') || '<div class="d-card"><p class="d-empty">まだ担当者がいません。設定の「Grok Bot 名簿」に書くか、ポストボックスの「Bot担当者名」を入れてください。</p></div>') + '</div>';
-    const row = (i, left) => '<a href="' + esc(i.url) + '" target="_blank" rel="noopener"><span class="w mono">' + esc(left) + '</span><span class="t">' + esc(i.件名) +
+    const row = (i, left) => '<a href="' + esc(i.url) + '" target="_blank" rel="noopener"><span class="w mono">' + left + '</span><span class="t">' + esc(i.件名) +
       '<span class="s"> ／ ' + esc(i.Bot || i.主担当AI || '担当未記入') + '</span></span><span class="pill ' + esc(i.ステータス) + '">' + esc(i.ステータス) + '</span></a>';
     body += '<div class="d-two">' +
       '<div class="d-card"><h3><span class="dot warn"></span>承認待ち<span class="d-aside mono">' + x.approvals.length + '件</span></h3><div class="d-list">' +
-        (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, i.期限 ? '期限 ' + shortDate(i.期限) : '期限なし')).join('') : '<p class="d-empty">ありません</p>') + '</div></div>' +
+        (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, dueLabel(i))).join('') : '<p class="d-empty">ありません</p>') + '</div></div>' +
       '<div class="d-card"><h3><span class="dot fresh"></span>最新の動き<span class="d-aside mono">新しい順</span></h3><div class="d-list">' +
-        (x.latest.length ? x.latest.map(i => row(i, clockText(i.更新))).join('') : '<p class="d-empty">まだ案件がありません</p>') + '</div></div></div>';
+        (x.latest.length ? x.latest.map(i => row(i, esc(clockText(i.更新)))).join('') : '<p class="d-empty">まだ案件がありません</p>') + '</div></div></div>';
   }
   const f = o.field || {}, w = o.wx;
   const wxTxt = w ? (WX_CODE[w.current.weather_code] || '') + ' ' + Math.round(w.daily.temperature_2m_max[0]) + '°/' + Math.round(w.daily.temperature_2m_min[0]) + '° ・ 降水 ' + w.daily.precipitation_probability_max[0] + '%' : '天気 —';
