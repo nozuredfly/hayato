@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv7</title>
+<title>AIハヤト Lv8</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -173,6 +173,14 @@ a.d-bot:hover{border-color:var(--cyan2)}
 .d-field{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:13px;margin-top:14px;border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:12px 16px}
 .d-field .k{color:var(--sub)}
 .d-empty{font-size:13px;color:var(--sub);line-height:1.7}
+.d-shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.d-shelf .sh{border:1px solid #2a3f5c;border-radius:12px;background:#0c1a2e;padding:10px 12px;border-top:3px solid var(--cyan2)}
+.d-shelf h4{font-size:13px;margin:0 0 6px;display:flex;justify-content:space-between;color:var(--cyan)} .d-shelf h4 span{color:var(--sub);font-weight:400}
+.d-book{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--text);padding:7px 2px;border-bottom:1px solid #16294a;font-size:13px}
+.d-book:last-child{border-bottom:none} .d-book:hover .t{color:var(--cyan)}
+.d-book .m{font-size:11px;color:var(--sub);display:flex;gap:8px;align-items:center}
+.d-book .draft{border:1px dashed #6b7f99;border-radius:8px;padding:0 6px} .d-book .main{border:1px solid #2f8f6a;color:#a8e6cf;border-radius:8px;padding:0 6px}
+.d-card h3 a.d-open{margin-left:14px;font-size:12px;color:var(--cyan);text-decoration:none;font-weight:400}
 .d-setup{border-color:var(--warn)} .d-setup p{font-size:14px;line-height:1.8}
 .d-foot{font-size:11px;color:#6f8fa8;margin-top:12px}
 </style>
@@ -181,7 +189,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv7</small></h1>
+  <h1>AI HAYATO<small>Lv8</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -365,6 +373,7 @@ const faultLine = x => mdText(x.日付キー) + '、' + (x.機械 || '機械不�
    run      実際の処理。結果は { ok, where, row, url, data, display, draft } で返す
    ok / ng  成功時・失敗時のハヤトの返し方（commit・draft）
    ===================================================================== */
+const SHELF_ORDER = ['事務', '経理', '労務', '現場', '菜の花エコ', 'その他'];   // マニュアル本棚の分野
 const JOBS = [
 
   /* ---------- 朝の報告（read） ---------- */
@@ -443,6 +452,33 @@ const JOBS = [
         AIの回答待ち:x.ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件'),
         担当者ごと:x.bots.map(b => ({ 名前:b.name, 上司:b.boss, いまの仕事:b.cur ? b.cur.件名 : 'なし', 状態:b.cur ? b.cur.ステータス : '', 最終報告:b.last ? ago(b.last) : '報告なし' })),
         担当者未記入の案件:x.unassigned.length, 進行中:x.openCount, 完了7日:x.weekDone } };
+    }
+  },
+
+  /* ---------- マニュアルを出す（read）：Notion「📚 マニュアル本棚」 ---------- */
+  {
+    id:'manual_find', name:'マニュアル', icon:'📚', type:'read',
+    when:'マニュアル・手順書・やり方・本棚を聞かれた時（例：蔵出しのマニュアル出して／菜の花エコの事務手順は？／マニュアル何がある？）',
+    hint:/マニュアル|手順書|手順は|やり方|本棚/,
+    inputs:{ keyword:{ label:'探す言葉', desc:'マニュアル名の一部（例：蔵出し、菜の花、事務）。一覧を聞かれた時は空' },
+             field:{ label:'分野', desc:'分野で絞る時だけ', options:SHELF_ORDER } },
+    source:'Notion「📚 マニュアル本棚」',
+    ready: () => gasReady() && gasInfo.notion,
+    reply:'見つかったマニュアル名を伝え、「中身」があれば要点を3〜5個に絞って話し言葉で説明する。リンクは画面に出したと言う。見つからなければ本棚にある題名を挙げる',
+    run: async (a) => {
+      const rows = await loadManuals();
+      const words = String(a.keyword || '').normalize('NFKC').split(/[\s　、,]+/).filter(Boolean);
+      let hit = rows.filter(m => !a.field || m.分野 === a.field);
+      if(words.length) hit = hit.filter(m => words.some(w => (String(m.マニュアル名 || '') + ' ' + (m.分野 || '')).normalize('NFKC').includes(w)));
+      const list = hit.map(m => ({ 題名:m.マニュアル名, 分野:m.分野 || '', 状態:m.状態 || '', 更新:m.最終更新日 || '' }));
+      const data = { 本棚の冊数:rows.length, 見つかった数:hit.length, 一覧:list };
+      if(!hit.length) data.本棚にある題名 = rows.map(m => m.マニュアル名);
+      if(words.length && hit.length){
+        try{ const r = await gas('notion_read', { id:manualPageId(hit[0]) }); data.中身 = { 題名:hit[0].マニュアル名, 本文:String(r.本文 || '').slice(0, 3000) }; }
+        catch(e){ data.中身 = { 題名:hit[0].マニュアル名, 本文:'（本文を読めませんでした：' + e.message + '）' }; }
+      }
+      return { ok:true, where:'Notion マニュアル本棚', url:MANUAL_URL, data, linksTitle:'📚 マニュアル',
+               links:(hit.length ? hit : rows).slice(0, 6).map(m => ({ label:(m.分野 ? m.分野 + '：' : '') + m.マニュアル名, url:manualLink(m) })) };
     }
   },
 
@@ -792,7 +828,7 @@ async function runJob(job, args, ctx){
   if(r.display) addAi('📖 ' + r.display.title, r.display.detail, r.display.sources, r.display.title);
   if(r.ok && r.summary){ const d = addMsg((job.icon || '📍') + ' ' + r.summary + '　', 'sys'); if(r.url) d.appendChild(link('台帳を開く', r.url)); }
   if(!r.ok) addMsg('⚠️ ' + job.name + '：' + (r.summary || '確認できませんでした（' + r.error + '）'), 'sys err');
-  if(r.links && r.links.length) addLinks('📍 記録先', r.links);
+  if(r.links && r.links.length) addLinks(r.linksTitle || '📍 記録先', r.links);
   if(job.type === 'draft' && r.ok && r.draft) addDraftCard(job, r);
   const forAI = Object.assign({ ok:r.ok }, r.data || {});
   if(r.where) forAI.参照先 = r.where;
@@ -1631,6 +1667,29 @@ function buildOps(items){
 let OPS = null, opsBusy = null;
 const isWide = () => S.boardOn !== false && window.matchMedia('(min-width:1100px)').matches;
 function applyWide(){ document.body.classList.toggle('wide', isWide()); }
+/* ---- マニュアル本棚（Notion「📚 マニュアル本棚」DB） ---- */
+const MANUAL_DB = '1cf6bb4393114b43b27a5ed5e15431e6';
+const MANUAL_URL = 'https://www.notion.so/' + MANUAL_DB;
+let MANUALS = null;
+async function loadManuals(){
+  if(MANUALS && Date.now() - MANUALS.t < 5 * 60 * 1000) return MANUALS.rows;
+  const m = await gas('notion_read', { id:MANUAL_DB, limit:50 });
+  MANUALS = { t:Date.now(), rows:m.行 || [] };
+  return MANUALS.rows;
+}
+const manualLink = m => m.Notion正本 || m.url;
+const manualPageId = m => { const t = String(m.Notion正本 || '').split(/[?#]/)[0].split('/').pop().replace(/-/g, '').slice(-32); return /^[0-9a-f]{32}$/i.test(t) ? t : m.id; };
+function shelfHtml(rows){
+  const g = {};
+  rows.forEach(m => { const k = m.分野 || 'その他'; (g[k] = g[k] || []).push(m); });
+  const rank = k => { const n = SHELF_ORDER.indexOf(k); return n < 0 ? 99 : n; };
+  const keys = Object.keys(g).sort((a, b) => rank(a) - rank(b));
+  return '<div class="d-shelf">' + keys.map(k => '<div class="sh"><h4>' + esc(k) + '<span>' + g[k].length + '冊</span></h4>' +
+    g[k].sort((a, b) => String(b.最終更新日 || '').localeCompare(String(a.最終更新日 || ''))).map(m =>
+      '<a class="d-book" href="' + esc(manualLink(m)) + '" target="_blank" rel="noopener"><span class="t">' + esc(m.マニュアル名 || '（題名なし）') + '</span>' +
+      '<span class="m"><span class="' + (m.状態 === '正本' ? 'main' : 'draft') + '">' + esc(m.状態 || '下書き') + '</span>' + (m.最終更新日 ? '<span>更新 ' + esc(shortDate(m.最終更新日)) + '</span>' : '') + '</span></a>').join('') +
+    '</div>').join('') + '</div>';
+}
 async function loadOps(force){
   if(opsBusy) return opsBusy;
   if(!force && OPS && Date.now() - OPS.t < 60 * 1000){ renderDash(); return OPS; }
@@ -1641,8 +1700,11 @@ async function loadOps(force){
       try{ await getSchema(); }catch(e){}
       if(!gasInfo.notion) res.error = 'setup-notion';
       else{
-        try{ const r = await gas('postbox', { limit:300 }); res.items = r.items; res.url = r.url; res.ops = buildOps(r.items); }
-        catch(e){ res.error = e.message; }
+        const [pb, mn] = await Promise.allSettled([ gas('postbox', { limit:300 }), gas('notion_read', { id:MANUAL_DB, limit:50 }) ]);
+        if(pb.status === 'fulfilled'){ const r = pb.value; res.items = r.items; res.url = r.url; res.ops = buildOps(r.items); }
+        else res.error = pb.reason.message;
+        if(mn.status === 'fulfilled'){ MANUALS = { t:Date.now(), rows:mn.value.行 || [] }; res.manuals = MANUALS.rows; }
+        else res.manualErr = mn.reason.message;
       }
       const [plan, fault] = await Promise.allSettled([
         gas('search', { sheet:'予定', dateFrom:ymd(0), dateTo:ymd(0), top:5 }),
@@ -1706,6 +1768,11 @@ function renderDash(){
         (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, dueLabel(i))).join('') : '<p class="d-empty">ありません</p>') + '</div></div>' +
       '<div class="d-card"><h3><span class="dot fresh"></span>最新の動き<span class="d-aside mono">新しい順</span></h3><div class="d-list">' +
         (x.latest.length ? x.latest.map(i => row(i, esc(clockText(i.更新)))).join('') : '<p class="d-empty">まだ案件がありません</p>') + '</div></div></div>';
+  }
+  if(o.manuals || o.manualErr){
+    body += '<div class="d-card" style="margin-top:14px"><h3>📚 マニュアル本棚<span class="d-aside mono">' + (o.manuals ? o.manuals.length + '冊' : '') + '</span><a class="d-open" href="' + MANUAL_URL + '" target="_blank" rel="noopener">本棚を開く ↗</a></h3>' +
+      (o.manuals ? (o.manuals.length ? shelfHtml(o.manuals) : '<p class="d-empty">まだマニュアルがありません</p>')
+                 : '<p class="d-empty">本棚を読めませんでした（' + esc(o.manualErr) + '）。DETAの「…」→「接続」にAIハヤトが入っているか確認してください。</p>') + '</div>';
   }
   const f = o.field || {}, w = o.wx;
   const wxTxt = w ? (WX_CODE[w.current.weather_code] || '') + ' ' + Math.round(w.daily.temperature_2m_max[0]) + '°/' + Math.round(w.daily.temperature_2m_min[0]) + '° ・ 降水 ' + w.daily.precipitation_probability_max[0] + '%' : '天気 —';
