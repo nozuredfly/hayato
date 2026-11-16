@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv9</title>
+<title>AIハヤト Lv10</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -194,7 +194,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv9</small></h1>
+  <h1>AI HAYATO<small>Lv10</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -507,6 +507,38 @@ const JOBS = [
     },
     ok: r => '「' + r.title + '」を' + '書き戻しました。' + r.change + '。最終判断の欄にも記録しました。',
     ng: e => 'ポストボックスに書き戻せませんでした。' + e + (/知らない依頼/.test(e) ? '　GASを最新（Lv9）に貼り替えて、新バージョンでデプロイしてください。' : '')
+  },
+
+  /* ---------- Lv10：Grok Botへの指示・催促（commit）→ ポストボックスに新しい行を作る ---------- */
+  {
+    id:'nudge', name:'Botへの指示', icon:'📨', type:'commit', verb:'登録',
+    when:'Grok Botの担当者に、指示・催促・お願いをポストボックス経由で出すよう言われた時（例：海外SNS担当に報告を催促して／蔵出し担当に明日までに在庫表を出すよう指示）。担当者名は【担当者】から選ぶ',
+    hint:/催促|指示して|指示を出|お願いして|伝えて|頼んで/,
+    inputs:{
+      who:     { label:'担当者', desc:'Grok Botの担当者名（【担当者】からそのまま）', required:true },
+      content: { label:'指示', desc:'やってほしいこと。具体的に、です・ます調で', required:true },
+      due:     { label:'期限', desc:'言われた時だけ YYYY/MM/DD（「明日まで」は日付に直す）' },
+      priority:{ label:'優先度', desc:'言われなければ「中」', options:['高','中','低'] }
+    },
+    source:'Notion「📮 ポストボックス（共通台帳）」に新規の行',
+    ready: () => gasReady() && gasInfo.notion,
+    context: async (ctx) => {
+      if(!/催促|指示|お願い|伝えて|頼んで/.test(ctx.text || '')) return '';
+      const o = await loadOps(); if(!o.ops) return '';
+      return '【担当者】' + o.ops.bots.map(b => b.name + '（' + (b.last ? ago(b.last) + 'に報告' : '報告なし') + '）').join(' / ');
+    },
+    preview: a => [['件名', '【指示】' + a.who + '：' + String(a.content).slice(0, 24)], ['担当者', a.who], ['指示', a.content], ['期限', a.due || ''], ['優先度', a.priority || '中'],
+                   ['ステータス', '新規（Grok Botが見て動きます）']],
+    run: async (a) => {
+      const record = { 件名:'【指示】' + a.who + '：' + String(a.content).slice(0, 24), ステータス:'新規', Bot担当者名:a.who, 起案者:BOSS, 主担当AI:'Grok',
+                       実行担当Bot:'Grok Bot', 優先度:a.priority || '中', 指示内容:a.content + '\n（' + nowText() + '・' + BOSS + 'よりAIハヤト経由）' };
+      if(a.due) record.実行期限 = a.due;
+      const r = await gas('notion_add', { id:POSTBOX_ID, record });
+      if(isWide()) setTimeout(() => loadOps(true), 500);
+      return { ok:true, where:'Notion ポストボックス（新規）', url:r.url, data:{ 入らなかった項目:r.unknown } };
+    },
+    ok: () => 'ポストボックスに指示を登録しました。Grok Botが見て動きます。',
+    ng: e => '指示を登録できませんでした。' + e
   },
 
   /* ---------- Lv9：司令本部の状況（read） ---------- */
@@ -1827,6 +1859,7 @@ const EXP_DB  = '41acae88c2dc817e9142f90817235778';
 const FLOW_DB = '41acae88c2dc81bd87b5e8ea23b27766';
 const HQ_URL  = 'https://www.notion.so/41acae88c2dc8127856ef097bd93de8a';
 const BOSS = '野副';
+const POSTBOX_ID = '22cc9d0d10fd4034bb23553c996d2bb5';
 let HQ = null;
 const nk = t => String(t || '').normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
 const isOpenQ = q => !String(q.本人の回答 || '').trim() && !['整理済', 'ChatGPT分析済'].includes(q.状態);
