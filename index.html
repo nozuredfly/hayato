@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv10</title>
+<title>AIハヤト Lv10.1</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -194,7 +194,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv10</small></h1>
+  <h1>AI HAYATO<small>Lv10.1</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -387,18 +387,21 @@ const JOBS = [
     when:'「おはよう」「朝礼」「今日の報告」など、朝のまとめを頼まれた時',
     hint:/おはよう|朝礼|今日の報告|朝の報告/,
     inputs:{},
-    source:'天気（Open-Meteo）、台帳「予定」（今日）「作業記録」（昨日）「故障記録」（未対応）、Notion（ポストボックス・経験値バンク）',
-    reply:'次の順で、話し言葉5〜6文で報告：①あいさつと今日の天気、農作業（散布・稲刈り・ドローン）への一言 ②今日の予定（無ければ「入っていません」）' +
+    source:'天気（Open-Meteo）、Googleカレンダー（今日）、台帳「予定」（今日）「作業記録」（昨日）「故障記録」（未対応）、Notion（ポストボックス・経験値バンク）',
+    reply:'次の順で、話し言葉5〜6文で報告：①あいさつと今日の天気、農作業（散布・稲刈り・ドローン）への一言 ②今日の予定（「今日のカレンダー」と「今日の予定」を合わせて時刻順に。無ければ「入っていません」）' +
           '③昨日の作業を短く ④未対応の故障があれば「件数」と新しいものから1〜2件（件数が0なら触れない） ⑤「AIとGrokBotの作業状況」と「承認待ちの案件」があれば2〜3文で（承認待ちは件名を短く、期限切れ・報告が止まっている担当者を優先） ⑥「経験値バンク」に回答待ちの質問があれば件数と「今夜の質問は？で読み上げます」と一言 ⑦前向きな一言。「注意」に書かれた取れなかった情報は、取れなかったと正直に言う',
     run: async () => {
       const data = { 今日: ymd(0), 昨日: ymd(-1) }, notes = [];
       try{ data.天気 = weatherText(await getWeather()); }catch(e){ notes.push('天気が取れませんでした'); }
       if(gasReady()){
-        const [plan, work, fault] = await Promise.allSettled([
+        const [plan, work, fault, cal] = await Promise.allSettled([
           gas('search', { sheet:'予定',     dateFrom:ymd(0),  dateTo:ymd(0),  top:20 }),
           gas('search', { sheet:'作業記録', dateFrom:ymd(-1), dateTo:ymd(-1), top:30 }),
-          searchFaults({ status:'未対応', top:3 }) ]);                     // 故障履歴と同じ検索。古い未対応も漏れない
+          searchFaults({ status:'未対応', top:3 }),                       // 故障履歴と同じ検索。古い未対応も漏れない
+          gas('cal_list', { from:ymd(0), to:ymd(0) }) ]);
         if(plan.status==='fulfilled')  data.今日の予定 = plan.value.rows;  else notes.push('「予定」シートが読めません');
+        if(cal.status==='fulfilled')   data.今日のカレンダー = cal.value.events.map(e => (e.終日 ? '終日 ' : e.開始 + '〜' + e.終了 + ' ') + e.題名 + (e.場所 ? '（' + e.場所 + '）' : ''));
+        else if(!/知らない依頼/.test(cal.reason && cal.reason.message)) notes.push('カレンダーが読めません');
         if(work.status==='fulfilled')  data.昨日の作業 = work.value.rows;  else notes.push('「作業記録」シートが読めません');
         if(fault.status==='fulfilled') data.未対応の故障 = { 件数:fault.value.total, 新しい順:fault.value.rows.map(faultLine) };
         else notes.push('「故障記録」シートが読めません（GASでsetupを実行すると作られます）');
@@ -507,6 +510,53 @@ const JOBS = [
     },
     ok: r => '「' + r.title + '」を' + '書き戻しました。' + r.change + '。最終判断の欄にも記録しました。',
     ng: e => 'ポストボックスに書き戻せませんでした。' + e + (/知らない依頼/.test(e) ? '　GASを最新（Lv9）に貼り替えて、新バージョンでデプロイしてください。' : '')
+  },
+
+  /* ---------- Lv10.1：Googleカレンダーを見る（read） ---------- */
+  {
+    id:'calendar', name:'カレンダー', icon:'📆', type:'read',
+    when:'予定・空き・スケジュールを聞かれた時（例：明日の予定は？／来週の金曜は空いてる？／今週の会議は？）。日付は現在日時から計算して入れる',
+    hint:/予定|空いて|空き|スケジュール|カレンダー|会議|約束|アポ/,
+    inputs:{
+      from:   { label:'開始日', desc:'YYYY/MM/DD（「明日」なら明日の日付）', required:true },
+      to:     { label:'終了日', desc:'YYYY/MM/DD（1日だけなら開始日と同じ）' },
+      keyword:{ label:'絞り込み', desc:'題名や場所の言葉（言われた時だけ）' }
+    },
+    source:'Googleカレンダー＋台帳「予定」',
+    ready: () => gasReady(),
+    reply:'日付ごと・時刻順に、題名と場所を短く。何も無ければ「入っていません（空いています）」。空きを聞かれたら、予定の無い時間帯を答える',
+    run: async (a) => {
+      const to = a.to || a.from;
+      const [c, sh] = await Promise.allSettled([ gas('cal_list', { from:a.from, to, keyword:a.keyword || '' }),
+                                                gas('search', { sheet:'予定', dateFrom:a.from, dateTo:to, top:30, keyword:a.keyword || '' }) ]);
+      if(c.status !== 'fulfilled' && sh.status !== 'fulfilled') return { ok:false, error:c.reason.message };
+      const data = { 期間:a.from + (to !== a.from ? '〜' + to : '') };
+      if(c.status === 'fulfilled') data.カレンダー = c.value.events; else data.注意 = 'カレンダーが読めません（' + c.reason.message + '）';
+      if(sh.status === 'fulfilled' && sh.value.total) data.台帳の予定 = sh.value.rows.map(r => ({ 日付:r.日付, 時刻:r.時刻 || '', 内容:r.内容, 場所:r.場所 || '' }));
+      return { ok:true, where:'Googleカレンダー', url:c.status === 'fulfilled' ? c.value.url : '', data };
+    }
+  },
+
+  /* ---------- Lv10.1：カレンダーに予定を入れる（commit） ---------- */
+  {
+    id:'cal_add', name:'予定を入れる', icon:'📆', type:'commit', verb:'登録',
+    when:'予定をカレンダーに入れて・登録してと頼まれた時（例：金曜10時に資材屋さん、予定に入れて）。日付と時刻は現在日時から計算して入れる',
+    hint:/予定に入れ|カレンダーに入れ|予定を入れ|予定登録|スケジュールに入れ/,
+    inputs:{
+      title:{ label:'題名', desc:'予定の名前（短く）', required:true },
+      date: { label:'日付', desc:'YYYY/MM/DD', required:true },
+      start:{ label:'開始', desc:'HH:MM（時刻を言われなければ空＝終日）' },
+      end:  { label:'終了', desc:'HH:MM（言われなければ空＝1時間）' },
+      place:{ label:'場所', desc:'言われた時だけ' },
+      memo: { label:'メモ', desc:'言われた時だけ' }
+    },
+    source:'Googleカレンダー',
+    ready: () => gasReady(),
+    preview: a => [['題名', a.title], ['日にち', a.date + '（' + '日月火水木金土'.charAt(new Date(String(a.date).replace(/\//g, '-') + 'T00:00').getDay()) + '）'],
+                   ['時間', a.start ? a.start + '〜' + (a.end || '（1時間）') : '終日'], ['場所', a.place || ''], ['メモ', a.memo || '']],
+    run: async (a) => { const r = await gas('cal_add', a); return { ok:true, where:'Googleカレンダー「' + r.calendar + '」', url:r.url, when:r.when, title:r.title }; },
+    ok: r => r.when + 'に「' + r.title + '」をカレンダーに入れました。',
+    ng: e => 'カレンダーに入れられませんでした。' + e + (/知らない依頼/.test(e) ? '　GASを最新（Lv10.1）に貼り替えて、新バージョンでデプロイしてください。' : /権限|permission|許可/i.test(e) ? '　Apps Scriptで関数「calTest」を一度実行して、カレンダーの許可を出してください。' : '')
   },
 
   /* ---------- Lv10：Grok Botへの指示・催促（commit）→ ポストボックスに新しい行を作る ---------- */
@@ -1864,6 +1914,7 @@ const EXP_DB  = '41acae88c2dc817e9142f90817235778';
 const FLOW_DB = '41acae88c2dc81bd87b5e8ea23b27766';
 const HQ_URL  = 'https://www.notion.so/41acae88c2dc8127856ef097bd93de8a';
 const BOSS = '野副';
+const nowHM = () => { const d = new Date(); return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const POSTBOX_ID = '22cc9d0d10fd4034bb23553c996d2bb5';
 let HQ = null;
 const nk = t => String(t || '').normalize('NFKC').replace(/[\s　]/g, '').toLowerCase();
@@ -1920,10 +1971,13 @@ async function loadOps(force){
         try{ res.hq = await loadHQ(true); }catch(e){ res.hq = { err:e.message }; }
         if(res.ops && res.hq && res.hq.open) res.ops.summary += res.hq.open.length ? '経験値バンクに、回答待ちの質問が' + res.hq.open.length + '件あります。' : '';
       }
-      const [plan, fault] = await Promise.allSettled([
+      const [plan, cal, fault] = await Promise.allSettled([
         gas('search', { sheet:'予定', dateFrom:ymd(0), dateTo:ymd(0), top:5 }),
+        gas('cal_list', { from:ymd(0), to:ymd(0) }),
         searchFaults({ status:'未対応', top:1 }) ]);
-      res.field = { plan: plan.status === 'fulfilled' ? plan.value.total : null, fault: fault.status === 'fulfilled' ? fault.value.total : null,
+      const evs = cal.status === 'fulfilled' ? cal.value.events : null;
+      res.field = { plan: (plan.status === 'fulfilled' || evs) ? (plan.status === 'fulfilled' ? plan.value.total : 0) + (evs ? evs.length : 0) : null,
+                    next: evs ? (evs.find(e => !e.終日 && e.開始 >= nowHM()) || evs[0] || null) : null, fault: fault.status === 'fulfilled' ? fault.value.total : null,
                     faultTop: fault.status === 'fulfilled' && fault.value.rows[0] ? fault.value.rows[0].機械 : '' };
     }
     try{ res.wx = await getWeather(); }catch(e){}
@@ -2014,7 +2068,7 @@ function renderDash(){
   const f = o.field || {}, w = o.wx;
   const wxTxt = w ? (WX_CODE[w.current.weather_code] || '') + ' ' + Math.round(w.daily.temperature_2m_max[0]) + '°/' + Math.round(w.daily.temperature_2m_min[0]) + '° ・ 降水 ' + w.daily.precipitation_probability_max[0] + '%' : '天気 —';
   body += '<div class="d-field"><span class="k">現場</span><span>' + esc(wxTxt) + '</span>' +
-    (f.plan != null ? '<span>今日の予定 ' + f.plan + '件</span>' : '') +
+    (f.plan != null ? '<span>今日の予定 ' + f.plan + '件' + (f.next ? '（' + esc((f.next.開始 ? f.next.開始 + ' ' : '') + f.next.題名) + '）' : '') + '</span>' : '') +
     (f.fault != null ? '<span class="' + (f.fault ? 'hl' : '') + '">未対応の故障 ' + f.fault + '件' + (f.faultTop ? '（' + esc(f.faultTop) + (f.fault > 1 ? 'ほか' : '') + '）' : '') + '</span>' : '') + '</div>';
   body += '<div class="d-foot mono">5分ごとに自動で更新します。カードを押すとNotionのページが開きます。</div>';
   el.innerHTML = head + body;
