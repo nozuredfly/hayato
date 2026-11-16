@@ -542,7 +542,7 @@ const JOBS = [
       const h = await loadHQ(true);
       if(!h.exp) return { ok:false, error:h.err || '経験値バンクを読めませんでした' };
       return { ok:true, where:'Notion 経験値バンク', url:'https://www.notion.so/' + EXP_DB,
-               data:{ 回答待ち:h.open.map(q => ({ 番号:q.ID, 質問:q.質問, 質問日:q.質問日 || '' })), 件数:h.open.length },
+               data:{ 回答待ち:h.open.map(q => ({ 番号:qNum(q), 質問:q.質問, 質問日:q.質問日 || '' })), 件数:h.open.length },
                linksTitle:'🧠 質問', links:h.open.slice(0, 6).map(q => ({ label:qLabel(q), url:q.url })) };
     }
   },
@@ -1834,13 +1834,15 @@ async function loadHQ(force){
   if(!force && HQ && Date.now() - HQ.t < 60 * 1000) return HQ;
   const [ex, fl] = await Promise.allSettled([ gas('db_recent', { id:EXP_DB, limit:40 }), gas('db_recent', { id:FLOW_DB, limit:12 }) ]);
   const h = { t:Date.now() };
-  if(ex.status === 'fulfilled'){ h.exp = ex.value.rows || []; h.open = h.exp.filter(isOpenQ); } else h.err = ex.reason.message;
+  if(ex.status === 'fulfilled'){ h.exp = ex.value.rows || []; h.open = h.exp.filter(isOpenQ).sort((a, b) => (+qNum(a) || 0) - (+qNum(b) || 0)); }   // 番号の小さい順 else h.err = ex.reason.message;
   if(fl.status === 'fulfilled') h.flow = fl.value.rows || []; else h.err = h.err || fl.reason.message;
   HQ = h; return h;
 }
-const qLabel = q => (q.ID ? '質問' + q.ID + '：' : '') + q.質問;
+const qNum = q => (String(q.ID || '').match(/\d+$/) || [''])[0];   // 「RZ-EXP-1」→「1」
+const qLabel = q => (qNum(q) ? '質問' + qNum(q) + '：' : '') + q.質問;
 function findQuestion(rows, id, text){
-  if(id) { const q = rows.find(x => String(x.ID) === String(id)); if(q) return { hit:q }; }
+  const n = (String(id || '').match(/\d+/) || [''])[0];
+  if(n){ const q = rows.find(x => qNum(x) === n); if(q) return { hit:q }; }
   const open = rows.filter(isOpenQ);
   if(!text) return open.length === 1 ? { hit:open[0] } : { list:open };
   const w = nk(text);
@@ -1958,8 +1960,8 @@ function renderDash(){
       const qs = (h.open || []).slice(0, 5), fl = (h.flow || []).slice(0, 6);
       body += '<div class="d-card d-hq" style="margin-top:14px"><h3>🚀 司令本部<span class="d-note">経験値バンクと工程管理</span><a class="d-open" href="' + HQ_URL + '" target="_blank" rel="noopener">開く ↗</a></h3><div class="d-two">' +
         '<div><div class="d-sub2">🧠 回答待ちの質問<span class="mono">' + (h.open || []).length + '件</span></div><div class="d-qs">' +
-          (qs.length ? qs.map(q => '<div class="d-q"><a href="' + esc(q.url) + '" target="_blank" rel="noopener"><span class="mono">' + esc(q.ID ? 'Q' + q.ID : '') + '</span>' + esc(q.質問) + '</a>' +
-            '<button class="d-btn d-ans" type="button" data-q="' + esc(q.ID || '') + '">🎙 答える</button></div>').join('') : '<p class="d-empty">回答待ちの質問はありません</p>') + '</div></div>' +
+          (qs.length ? qs.map(q => '<div class="d-q"><a href="' + esc(q.url) + '" target="_blank" rel="noopener"><span class="mono">' + esc(qNum(q) ? '質問' + qNum(q) : '') + '</span>' + esc(q.質問) + '</a>' +
+            '<button class="d-btn d-ans" type="button" data-q="' + esc(qNum(q)) + '">🎙 答える</button></div>').join('') : '<p class="d-empty">回答待ちの質問はありません</p>') + '</div></div>' +
         '<div><div class="d-sub2">🔀 工程管理<span class="mono">新しい順</span></div><div class="d-list">' +
           (fl.length ? fl.map(f => '<a href="' + esc(f.url) + '" target="_blank" rel="noopener" title="' + esc(f.工程名) + '"><span class="w">' + esc(f.系統 || '') + '</span><span class="t">' + esc(f.工程名) +
             '<span class="s"> ／ ' + esc(f.担当 || '') + '</span></span><span class="pill ' + esc(f.処理状態 === 'エラー' ? 'エラー' : f.処理状態 === '完了' ? '完了' : f.処理状態 === '処理中' ? '実行中' : '') + '">' + esc(f.処理状態 || '—') + '</span></a>').join('')
