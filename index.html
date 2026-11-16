@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv8</title>
+<title>AIハヤト Lv8.1</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -173,6 +173,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 .d-field{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:13px;margin-top:14px;border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:12px 16px}
 .d-field .k{color:var(--sub)}
 .d-empty{font-size:13px;color:var(--sub);line-height:1.7}
+.d-sub{display:flex;justify-content:space-between;font-size:12px;color:#a8e6cf;margin:12px 0 2px;border-top:1px dashed #2a3f5c;padding-top:10px} .d-ok{color:#a8e6cf;font-weight:700} .d-hint{font-size:11px;color:var(--sub);margin:4px 0 0}
 .d-shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .d-shelf .sh{border:1px solid #2a3f5c;border-radius:12px;background:#0c1a2e;padding:10px 12px;border-top:3px solid var(--cyan2)}
 .d-shelf h4{font-size:13px;margin:0 0 6px;display:flex;justify-content:space-between;color:var(--cyan)} .d-shelf h4 span{color:var(--sub);font-weight:400}
@@ -189,7 +190,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv8</small></h1>
+  <h1>AI HAYATO<small>Lv8.1</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -451,6 +452,8 @@ const JOBS = [
         報告が止まっている担当者:x.bots.filter(b => b.h >= 24).map(b => b.name + '：' + (b.last ? ago(b.last) : '報告なし')),
         AIの回答待ち:x.ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件'),
         担当者ごと:x.bots.map(b => ({ 名前:b.name, 上司:b.boss, いまの仕事:b.cur ? b.cur.件名 : 'なし', 状態:b.cur ? b.cur.ステータス : '', 最終報告:b.last ? ago(b.last) : '報告なし' })),
+        承認済みでステータス未更新:x.approvedStale.map(i => i.件名),
+        今日の報告:x.todayReports.map(i => i.件名 + '（' + (i.Bot || '担当未記入') + '）'),
         担当者未記入の案件:x.unassigned.length, 進行中:x.openCount, 完了7日:x.weekDone } };
     }
   },
@@ -1616,12 +1619,16 @@ function dueLabel(i){
   if(d === t) return '<span class="hl">今日まで</span>';
   return '期限 ' + esc(shortDate(i.期限));
 }
-function buildOps(items){
-  items = items.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
+const isReport = i => /^\s*【(日報|日次)/.test(i.件名 || '');   // 毎日の報告（案件ではない）
+function buildOps(all){
+  all = all.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
+  const items = all.filter(i => !isReport(i));                     // 案件だけ
+  const reports = all.filter(isReport);
+  const todayReports = reports.filter(i => hoursAgo(i.更新) < 24);
   const todayISO = ymd(0).replace(/\//g, '-');
   const open = items.filter(i => i.ステータス !== '完了');
   const weekDone = items.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7);
-  const pipe = PIPE.map(st => ({ st, n:items.filter(i => i.ステータス === st).length, cls: st === '承認待ち' ? 'warn' : st === '実行中' ? 'run' : '' }));
+  const pipe = PIPE.map(st => ({ st, n:items.filter(i => i.ステータス === st && !(st === '承認待ち' && i.承認済み)).length, cls: st === '承認待ち' ? 'warn' : st === '実行中' ? 'run' : '' }));
   pipe.push({ st:'完了（7日）', n:weekDone.length, cls:'done' });
   pipe.push({ st:'差し戻し・保留・エラー', n:items.filter(i => ['差し戻し','保留','エラー'].includes(i.ステータス)).length, cls:'other' });
   const ais = AIS.map(a => {
@@ -1632,24 +1639,27 @@ function buildOps(items){
     return Object.assign({}, a, { active:act.length, wait, last });
   });
   const roster = parseRoster(S.roster);
-  const names = [...new Set(roster.map(x => x.name).concat(items.map(i => i.Bot).filter(Boolean)))];
+  const names = [...new Set(roster.map(x => x.name).concat(all.map(i => i.Bot).filter(n => n && !/集約/.test(n))))];   // 「（集約）」はまとめ役なのでカードにしない
   const bots = names.map(n => {
     const rr = roster.find(x => x.name === n) || {};
-    const mine = items.filter(i => i.Bot === n);
+    const mine = items.filter(i => i.Bot === n), mineAll = all.filter(i => i.Bot === n);
     const act = mine.filter(i => i.ステータス !== '完了');
-    const cur = act[0] || mine[0] || null;            // GASが更新の新しい順で返す
-    const last = mine.reduce((m, i) => (!m || i.更新 > m) ? i.更新 : m, '');
+    const cur = act[0] || mine[0] || mineAll[0] || null;   // 進行中の案件 → 最近の案件 → 最近の報告
+    const last = mineAll.reduce((m, i) => (!m || i.更新 > m) ? i.更新 : m, '');   // 報告も「報告した」に数える
     const dept = rr.dept || (cur && cur.部門) || '';
     const boss = rr.boss || (cur && cur.主担当AI && cur.主担当AI !== 'なし' ? cur.主担当AI : '') || DEPT_BOSS[dept] || '';
     return { name:n, dept, boss, cur, last, h:hoursAgo(last), active:act.length,
              done:mine.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7).length };
   }).sort((a, b) => a.h - b.h);
   const unassigned = open.filter(i => !i.Bot);
-  const approvals = items.filter(i => i.ステータス === '承認待ち' || (i.承認要否 && !i.承認済み && i.ステータス !== '完了'));
+  const approvedStale = items.filter(i => i.ステータス === '承認待ち' && i.承認済み);   // 承認済みなのにステータスが進んでいない
+  const approvals = items.filter(i => !i.承認済み && (i.ステータス === '承認待ち' || (i.承認要否 && i.ステータス !== '完了')));
   const due = open.filter(i => i.期限 && i.期限.slice(0, 10) <= todayISO);
   const overdue = due.filter(i => i.期限.slice(0, 10) < todayISO), dueToday = due.filter(i => i.期限.slice(0, 10) === todayISO);
   const say = [];
   say.push(approvals.length ? '承認待ちが' + approvals.length + '件あります。' : '承認待ちはありません。');
+  if(approvedStale.length) say.push('承認済みなのにステータスが「承認待ち」のままの案件が' + approvedStale.length + '件あります。');
+  say.push(todayReports.length ? '今日の報告は' + todayReports.length + '件届いています。' : '今日の報告はまだ届いていません。');
   if(bots.length){
     say.push('Grok Botは' + bots.length + '名中' + bots.filter(b => b.h < 24).length + '名が24時間以内に報告しています。');
     const stale = bots.filter(b => b.h >= 72 && b.last), never = bots.filter(b => !b.last);
@@ -1661,7 +1671,7 @@ function buildOps(items){
   if(overdue.length) say.push('期限切れの案件が' + overdue.length + '件あります。');
   if(dueToday.length) say.push('今日が期限の案件が' + dueToday.length + '件あります。');
   if(unassigned.length) say.push('担当者が未記入の案件が' + unassigned.length + '件あります。');
-  return { pipe, ais, bots, unassigned, approvals, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
+  return { pipe, ais, bots, unassigned, approvals, approvedStale, todayReports, reports, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
 }
 
 let OPS = null, opsBusy = null;
@@ -1761,11 +1771,17 @@ function renderDash(){
         '<div class="ft"><span>Notionで「Bot担当者名」を入れると、担当者ごとに並びます</span></div></div>');
     }
     body += '<div class="d-bots">' + (cards.join('') || '<div class="d-card"><p class="d-empty">まだ担当者がいません。設定の「Grok Bot 名簿」に書くか、ポストボックスの「Bot担当者名」を入れてください。</p></div>') + '</div>';
-    const row = (i, left) => '<a href="' + esc(i.url) + '" target="_blank" rel="noopener"><span class="w mono">' + left + '</span><span class="t">' + esc(i.件名) +
+    const row = (i, left) => '<a href="' + esc(i.url) + '" target="_blank" rel="noopener" title="' + esc(i.件名) + '"><span class="w mono">' + left + '</span><span class="t">' + esc(i.件名) +
       '<span class="s"> ／ ' + esc(i.Bot || i.主担当AI || '担当未記入') + '</span></span><span class="pill ' + esc(i.ステータス) + '">' + esc(i.ステータス) + '</span></a>';
     body += '<div class="d-two">' +
       '<div class="d-card"><h3><span class="dot warn"></span>承認待ち<span class="d-aside mono">' + x.approvals.length + '件</span></h3><div class="d-list">' +
-        (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, dueLabel(i))).join('') : '<p class="d-empty">ありません</p>') + '</div></div>' +
+        (x.approvals.length ? x.approvals.slice(0, 6).map(i => row(i, dueLabel(i))).join('') : '<p class="d-empty">ありません</p>') + '</div>' +
+        (x.approvedStale.length ? '<div class="d-sub">承認済み・ステータス未更新<span class="mono">' + x.approvedStale.length + '件</span></div><div class="d-list">' +
+          x.approvedStale.slice(0, 4).map(i => row(i, '<span class="d-ok">承認済</span>')).join('') +
+          '</div><p class="d-hint">Notionでステータスを「実行中」か「完了」へ進めてください</p>' : '') + '</div>' +
+      '<div class="d-card"><h3><span class="dot fresh"></span>今日の報告<span class="d-aside mono">' + x.todayReports.length + '件（24時間）</span></h3><div class="d-list">' +
+        (x.todayReports.length ? x.todayReports.slice(0, 6).map(i => row(i, esc(clockText(i.更新)))).join('')
+          : '<p class="d-empty">まだ届いていません' + (x.reports[0] ? '（前回 ' + esc(clockText(x.reports[0].更新)) + '）' : '') + '</p>') + '</div></div>' +
       '<div class="d-card"><h3><span class="dot fresh"></span>最新の動き<span class="d-aside mono">新しい順</span></h3><div class="d-list">' +
         (x.latest.length ? x.latest.map(i => row(i, esc(clockText(i.更新)))).join('') : '<p class="d-empty">まだ案件がありません</p>') + '</div></div></div>';
   }
