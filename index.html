@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv11</title>
+<title>AIハヤト Lv11.1</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -125,6 +125,9 @@ dialog textarea{min-height:90px;resize:vertical}
 .row button.primary{background:var(--cyan2);color:var(--on-accent);border:none;font-weight:600}
 .check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px}
 .check input{width:auto}
+/* Lv11.1：パスワード欄にしない（Chromeの自動入力でAPIキーが上書きされるのを防ぐ）。見た目だけ●で隠す */
+input.secret{-webkit-text-security:disc;text-security:disc}
+input.secret.show{-webkit-text-security:none;text-security:none}
 .note{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
 .note a{color:var(--cyan)}
 .msg.card{align-self:stretch;max-width:100%;background:var(--card-confirm);border:1px solid var(--cyan2);border-radius:12px}
@@ -236,7 +239,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv11</small></h1>
+  <h1>AI HAYATO<small>Lv11.1</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -286,7 +289,8 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <dialog id="settings">
   <h2>設定</h2>
   <label>Gemini APIキー</label>
-  <input id="apiKey" type="password" placeholder="AIza...">
+  <input id="apiKey" class="secret" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="AIza...">
+  <label class="check"><input type="checkbox" id="showKey"> キーと合言葉を表示して確かめる</label>
   <div class="note">Google AI Studio（<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>）で無料取得できます。キーはこの端末の中だけに保存されます。</div>
   <label>モデル名</label>
   <input id="model" placeholder="gemini-3.5-flash-lite">
@@ -296,7 +300,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
   <label>GASのURL（台帳・ドキュメント・LINE・Notion）</label>
   <input id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
   <label>台帳の合言葉</label>
-  <input id="gasSecret" type="password" placeholder="GASに書いた合言葉">
+  <input id="gasSecret" class="secret" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="GASに書いた合言葉">
   <div class="avrow"><button id="gasTest">接続テスト</button><span id="gasMsg" class="note" style="margin:0"></span></div>
   <label>Grok Bot 名簿（作業状況ボード用・任意）</label>
   <textarea id="roster" placeholder="1行に1人：名前,部門,上司AI&#10;例）菜の花エコ担当,総務・営業,ChatGPT"></textarea>
@@ -1418,7 +1422,8 @@ async function pickModel(exclude){
 function errText(status, data){
   const m = data?.error?.message || '';
   if(status===429) return '使いすぎで一時的に止まっています。1分ほど待ってからどうぞ（無料枠の上限）。';
-  if(status===400 && /API key/i.test(m)) return 'APIキーが正しくないようです。設定を確認してください。';
+  if(status===400 && /expired/i.test(m)) return 'APIキーの期限が切れています。AI Studioで新しいキーを作って、設定に貼り直してください。';
+  if(status===400 && /API key/i.test(m)) return 'APIキーが正しくないようです。設定を確認してください。（Googleの返事：' + m + '）';
   if(status===404) return 'モデル名が見つかりません。設定でモデル名を確認してください。';
   if(status===503 || status===500) return 'Googleのモデルが混み合っていて答えられませんでした。少し時間をおいて、もう一度どうぞ。';
   return 'エラー（' + status + '）：' + m;
@@ -1783,8 +1788,12 @@ $('gasTest').addEventListener('click', async () => {
   }catch(e){ $('gasMsg').textContent = '❌ ' + e.message; }
   S.gasUrl = keep.u; S.gasSecret = keep.k;
 });
+$('showKey').addEventListener('change', e => { ['apiKey','gasSecret'].forEach(id => $(id).classList.toggle('show', e.target.checked)); });
 $('saveSet').addEventListener('click', () => {
-  S.apiKey = $('apiKey').value.trim();
+  const newKey = $('apiKey').value.trim();
+  if(newKey && !/^AIza[0-9A-Za-z_-]{30,}$/.test(newKey) &&
+     !confirm('APIキーの形が「AIza…」ではありません。\n（ブラウザの自動入力で別の文字が入っていないか確認してください）\nこのまま保存しますか？')) return;
+  S.apiKey = newKey;
   S.model = $('model').value.trim() || defaults.model;
   S.userName = $('userName').value.trim() || defaults.userName;
   S.persona = $('persona').value.trim() || DEFAULT_PERSONA;
