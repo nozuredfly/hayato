@@ -7,16 +7,54 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv10.1</title>
+<title>AIハヤト Lv11</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
-  --bg:#050b16; --panel:#0c1729; --line:#1c3354; --cyan:#3ee6ff; --cyan2:#1aa3c9;
-  --text:#e6f6ff; --sub:#7fa3c0; --me:#163150; --ai:#0f2238; --warn:#ffb347;
+  --bg:#050b16; --bg2:#0b1d36; --panel:#0c1729; --card:rgba(10,20,36,.9); --card2:#0c1a2e; --left:rgba(5,11,22,.6);
+  --line:#1c3354; --line2:#2a3f5c; --div:#16294a; --cyan:#3ee6ff; --cyan2:#1aa3c9; --glow:62,230,255;
+  --text:#e6f6ff; --sub:#7fa3c0; --faint:#4a6580; --dim-line:#4a5f7a; --stale-text:#b9c9d6; --chip-text:#c9e6f5; --run-text:#9eeaff;
+  --me:#163150; --ai:#0f2238; --on-accent:#001; --on-warn:#021018; --mic-bg:#06223a; --btn2:#0b2a40; --card-confirm:#0b2238; --backdrop:rgba(0,0,0,.6);
+  --warn:#ffb347; --warn-soft:#ffcf86; --warn-line:#b8862c; --warn-bg:rgba(255,179,71,.12); --bad:#ff8a7a;
+  --ok-text:#a8e6cf; --ok-line:#2f8f6a; --ok-bg:#0d2a1f; --ng-bg:#2a1a0d;
+  --violet-line:#6b5fb8; --violet-text:#d4c8ff; --draft-line:#8a7a2f; --draft-text:#f0e2a0;
 }
+/* ---- テーマ（画面の色）：data-theme を切り替えるだけ。新しいテーマはここに1ブロック足すだけで増やせます ---- */
+html[data-theme="sky"]{
+  --bg:#e8f5fd; --bg2:#c9e8fa; --panel:#ffffff; --card:rgba(255,255,255,.92); --card2:#f2f9fe; --left:rgba(255,255,255,.75);
+  --line:#b5d9ee; --line2:#c6e2f2; --div:#dcedf7; --cyan:#0479b8; --cyan2:#1a9ee0; --glow:26,158,224;
+  --text:#0d2a3d; --sub:#4b6c82; --faint:#7d97a8; --dim-line:#a3bfd0; --stale-text:#58707f; --chip-text:#1f4f6b; --run-text:#06679d;
+  --me:#cbe9fb; --ai:#ffffff; --on-accent:#ffffff; --on-warn:#ffffff; --mic-bg:#d9effb; --btn2:#e1f2fc; --card-confirm:#eef8ff; --backdrop:rgba(10,40,70,.35);
+  --warn:#c26200; --warn-soft:#a35400; --warn-line:#e3a253; --warn-bg:rgba(255,166,60,.16); --bad:#c62f24;
+  --ok-text:#16764c; --ok-line:#48b083; --ok-bg:#e5f6ee; --ng-bg:#fff0e0;
+  --violet-line:#8d7ad8; --violet-text:#5640b5; --draft-line:#c9a73a; --draft-text:#735c00;
+}
+html[data-theme="white"]{
+  --bg:#f5f6f8; --bg2:#ffffff; --panel:#ffffff; --card:#ffffff; --card2:#f7f8fa; --left:#ffffff;
+  --line:#d6dbe2; --line2:#e0e4ea; --div:#eceff3; --cyan:#0a64a8; --cyan2:#1f7fcf; --glow:31,127,207;
+  --text:#1a222c; --sub:#56616f; --faint:#8a94a1; --dim-line:#b4bcc6; --stale-text:#5d6773; --chip-text:#2a3a4c; --run-text:#0b5c99;
+  --me:#e3eefa; --ai:#ffffff; --on-accent:#ffffff; --on-warn:#ffffff; --mic-bg:#eef3f8; --btn2:#eef3f8; --card-confirm:#f3f8fd; --backdrop:rgba(20,30,40,.3);
+  --warn:#b85c00; --warn-soft:#9c4f00; --warn-line:#e0a659; --warn-bg:rgba(255,166,60,.14); --bad:#c0291f;
+  --ok-text:#15704a; --ok-line:#4aa97e; --ok-bg:#e8f6ef; --ng-bg:#fdf0e3;
+  --violet-line:#8f80d4; --violet-text:#5240ad; --draft-line:#c7a640; --draft-text:#6e5800;
+}
+html[data-theme="emerald"]{
+  --bg:#03130f; --bg2:#0a2c24; --panel:#0a1f19; --card:rgba(8,30,24,.9); --card2:#0b241d; --left:rgba(3,19,15,.6);
+  --line:#1b4a3d; --line2:#245647; --div:#133a30; --cyan:#3ff0c2; --cyan2:#16b495; --glow:63,240,194;
+  --text:#e6fff7; --sub:#86b9a8; --faint:#4f7d6e; --dim-line:#4a7467; --stale-text:#b4d2c8; --chip-text:#c5f0e2; --run-text:#9ff6da;
+  --me:#12392f; --ai:#0c271f; --on-accent:#00140e; --on-warn:#1a1000; --mic-bg:#062a21; --btn2:#0b2e25; --card-confirm:#0a2a22; --backdrop:rgba(0,0,0,.6);
+}
+/* 明るいテーマでは、薄い光の網目を消してすっきり見せる */
+html[data-theme="sky"] body.wide #dash, html[data-theme="white"] body.wide #dash{background-image:none}
+html[data-theme="sky"] #mic, html[data-theme="white"] #mic{border-color:var(--cyan2)}
+/* 設定画面のテーマ見本 */
+.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 4px}
+.themes button{border:2px solid var(--line);border-radius:10px;padding:8px 4px 6px;font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--panel);color:var(--text)}
+.themes button.on{border-color:var(--cyan2);box-shadow:0 0 0 2px rgba(var(--glow),.35)}
+.themes i{display:block;width:100%;height:26px;border-radius:6px;border:1px solid rgba(128,128,128,.35)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{background:radial-gradient(ellipse at top,#0b1d36 0%,var(--bg) 60%);color:var(--text);
+body{background:radial-gradient(ellipse at top,var(--bg2) 0%,var(--bg) 60%);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
   display:flex;flex-direction:column;max-width:720px;margin:0 auto;
   padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
@@ -40,8 +78,8 @@ header h1 small{font-size:11px;color:var(--sub);letter-spacing:.05em;margin-left
 #core{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px 4px}
 #stage{position:relative;width:200px;height:200px}
 #mic{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;border:3px solid var(--cyan2);cursor:pointer;
-  background:#06223a;padding:0;overflow:hidden;
-  box-shadow:0 0 18px rgba(62,230,255,.35);transition:transform .15s}
+  background:var(--mic-bg);padding:0;overflow:hidden;
+  box-shadow:0 0 18px rgba(var(--glow),.35);transition:transform .15s}
 #mic:active{transform:scale(.96)}
 .fr{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;opacity:0;pointer-events:none}
 .fr.on{opacity:1}
@@ -49,8 +87,8 @@ header h1 small{font-size:11px;color:var(--sub);letter-spacing:.05em;margin-left
 #mic.listening{animation:pulse 1.1s infinite}
 #mic.thinking{filter:brightness(.8)}
 #mic.thinking + #ring{border-color:var(--cyan);animation:spin 1.6s linear infinite}
-#mic.speaking{animation:talk .32s ease-in-out infinite alternate;box-shadow:0 0 36px rgba(62,230,255,.85)}
-@keyframes pulse{0%,100%{box-shadow:0 0 14px rgba(62,230,255,.4)}50%{box-shadow:0 0 48px rgba(62,230,255,1)}}
+#mic.speaking{animation:talk .32s ease-in-out infinite alternate;box-shadow:0 0 36px rgba(var(--glow),.85)}
+@keyframes pulse{0%,100%{box-shadow:0 0 14px rgba(var(--glow),.4)}50%{box-shadow:0 0 48px rgba(var(--glow),1)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-4px) scale(1.035)}}
 #log{order:0}
@@ -62,11 +100,11 @@ header h1 small{font-size:11px;color:var(--sub);letter-spacing:.05em;margin-left
 #status{font-size:12px;color:var(--sub);min-height:1.4em;text-align:center}
 #modes{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .mode{background:var(--panel);border:1px solid var(--line);color:var(--sub);border-radius:20px;padding:5px 12px;font-size:13px;cursor:pointer}
-.mode.on{background:var(--cyan2);color:#001;border-color:var(--cyan2);font-weight:600}
+.mode.on{background:var(--cyan2);color:var(--on-accent);border-color:var(--cyan2);font-weight:600}
 #interpBar{display:none;gap:8px;justify-content:center}
 #interpBar.show{display:flex}
-#interpBar button{border:1px solid var(--cyan2);background:#0b2a40;color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
-#interpBar button.cur{background:var(--cyan2);color:#001;font-weight:600}
+#interpBar button{border:1px solid var(--cyan2);background:var(--btn2);color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
+#interpBar button.cur{background:var(--cyan2);color:var(--on-accent);font-weight:600}
 #cam{background:var(--panel);border:1px solid var(--line);border-radius:10px;font-size:18px;padding:0 10px;cursor:pointer}
 #pending{display:none;align-items:center;gap:8px;padding:0 16px;font-size:12px;color:var(--sub)}
 #pending.show{display:flex}
@@ -75,21 +113,21 @@ header h1 small{font-size:11px;color:var(--sub);letter-spacing:.05em;margin-left
 .msg img.photo{display:block;max-width:180px;border-radius:8px;margin-bottom:6px}
 #inputRow{display:flex;gap:8px;padding:8px 16px 14px}
 #text{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:16px}
-#send{background:var(--cyan2);color:#001;border:none;border-radius:10px;padding:0 16px;font-weight:600;font-size:15px;cursor:pointer}
+#send{background:var(--cyan2);color:var(--on-accent);border:none;border-radius:10px;padding:0 16px;font-weight:600;font-size:15px;cursor:pointer}
 dialog{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(92vw,460px)}
-dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog::backdrop{background:var(--backdrop)}
 dialog h2{font-size:16px;margin-bottom:12px;color:var(--cyan)}
 dialog label{display:block;font-size:12px;color:var(--sub);margin:12px 0 4px}
 dialog input,dialog select,dialog textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:15px;font-family:inherit}
 dialog textarea{min-height:90px;resize:vertical}
 .row{display:flex;gap:8px;margin-top:16px}
 .row button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:14px;cursor:pointer}
-.row button.primary{background:var(--cyan2);color:#001;border:none;font-weight:600}
+.row button.primary{background:var(--cyan2);color:var(--on-accent);border:none;font-weight:600}
 .check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px}
 .check input{width:auto}
 .note{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.5}
 .note a{color:var(--cyan)}
-.msg.card{align-self:stretch;max-width:100%;background:#0b2238;border:1px solid var(--cyan2);border-radius:12px}
+.msg.card{align-self:stretch;max-width:100%;background:var(--card-confirm);border:1px solid var(--cyan2);border-radius:12px}
 .card-h{font-weight:700;color:var(--cyan);margin-bottom:6px}
 .msg.card table{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0}
 .msg.card th{text-align:left;color:var(--sub);font-weight:400;padding:3px 8px 3px 0;white-space:nowrap;vertical-align:top;width:5.5em}
@@ -98,24 +136,24 @@ dialog textarea{min-height:90px;resize:vertical}
 .msg.card.done{opacity:.75;border-color:var(--line)}
 .btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .btns button{flex:1;min-width:80px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:14px;cursor:pointer}
-.btns button.ok{background:var(--cyan2);color:#001;border:none;font-weight:700}
-.msg.res{align-self:stretch;max-width:100%;background:#0d2a1f;border:1px solid #2f8f6a;font-size:14px}
-.msg.res.ng{background:#2a1a0d;border-color:var(--warn)}
-.msg.res .where{margin-top:6px;font-size:13px;color:#a8e6cf}
+.btns button.ok{background:var(--cyan2);color:var(--on-accent);border:none;font-weight:700}
+.msg.res{align-self:stretch;max-width:100%;background:var(--ok-bg);border:1px solid var(--ok-line);font-size:14px}
+.msg.res.ng{background:var(--ng-bg);border-color:var(--warn)}
+.msg.res .where{margin-top:6px;font-size:13px;color:var(--ok-text)}
 .job{border-bottom:1px solid var(--line);padding:8px 0}
 .job.off{opacity:.55}
 .job .note{white-space:pre-wrap}
 .tag{display:inline-block;font-size:11px;border-radius:10px;padding:1px 8px;margin-left:4px;border:1px solid var(--line);color:var(--sub)}
-.tag.read{border-color:#2f8f6a;color:#a8e6cf}.tag.draft{border-color:#8a7a2f;color:#f0e2a0}.tag.commit{border-color:var(--warn);color:var(--warn)}
+.tag.read{border-color:var(--ok-line);color:var(--ok-text)}.tag.draft{border-color:var(--draft-line);color:var(--draft-text)}.tag.commit{border-color:var(--warn);color:var(--warn)}
 /* ===== 作業状況ボード（広い画面だけ） ===== */
 #shell{display:flex;flex:1;min-height:0}
 #left{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
 #dash{display:none}
 @media (min-width:1100px){
   body.wide{max-width:none}
-  body.wide #left{flex:0 0 400px;border-right:1px solid var(--line);background:rgba(5,11,22,.6)}
+  body.wide #left{flex:0 0 400px;border-right:1px solid var(--line);background:var(--left)}
   body.wide #dash{display:block;flex:1;min-width:0;overflow-y:auto;padding:18px 26px 30px;
-    background-color:#050b16;background-image:linear-gradient(rgba(62,230,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(62,230,255,.04) 1px,transparent 1px);background-size:32px 32px}
+    background-color:var(--bg);background-image:linear-gradient(rgba(var(--glow),.04) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--glow),.04) 1px,transparent 1px);background-size:32px 32px}
   body.wide #stage{width:170px;height:170px}
 }
 .mono{font-family:"SF Mono",Menlo,Consolas,monospace}
@@ -123,78 +161,82 @@ dialog textarea{min-height:90px;resize:vertical}
 .d-head h2{font-size:17px;letter-spacing:.24em;color:var(--cyan);font-weight:700}
 .d-head .d-src{font-size:12px;color:var(--sub)}
 .d-head .d-right{margin-left:auto;display:flex;gap:10px;align-items:center}
-.d-btn{background:none;border:1px solid var(--line);color:#c9e6f5;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;min-height:36px}
+.d-btn{background:none;border:1px solid var(--line);color:var(--chip-text);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;min-height:36px}
 .d-btn:hover{border-color:var(--cyan2)}
-.d-card{border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:14px 16px;margin-bottom:14px}
+.d-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px 16px;margin-bottom:14px}
 .d-card h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .d-card h3 .d-note{font-size:12px;color:var(--sub);font-weight:400}
 .d-card h3 .d-aside{margin-left:auto;font-size:12px;color:var(--sub);font-weight:400}
-.d-say{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--cyan2);box-shadow:0 0 22px rgba(62,230,255,.12)}
+.d-say{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--cyan2);box-shadow:0 0 22px rgba(var(--glow),.12)}
 .d-say .d-lbl{font-size:11px;letter-spacing:.16em;color:var(--cyan);white-space:nowrap;padding-top:3px}
 .d-say p{flex:1;font-size:15px;line-height:1.75}
 .d-pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}
-.d-tile{border-radius:8px;background:#0c1a2e;border:1px solid #2a3f5c;padding:8px 10px}
+.d-tile{border-radius:8px;background:var(--card2);border:1px solid var(--line2);padding:8px 10px}
 .d-tile .k{font-size:12px;color:var(--sub)} .d-tile .v{font-size:24px;font-weight:600}
-.d-tile.warn{background:rgba(255,179,71,.12);border-color:#b8862c} .d-tile.warn .k{color:#ffcf86} .d-tile.warn .v{color:var(--warn)}
-.d-tile.run{background:rgba(62,230,255,.08);border-color:var(--cyan2)} .d-tile.run .v{color:var(--cyan)}
-.d-tile.done{border-color:#2f8f6a} .d-tile.done .k,.d-tile.done .v{color:#a8e6cf}
-.d-tile.other{border-style:dashed;border-color:#4a5f7a}
-.d-tile.zero .v{color:#4a6580}
+.d-tile.warn{background:var(--warn-bg);border-color:var(--warn-line)} .d-tile.warn .k{color:var(--warn-soft)} .d-tile.warn .v{color:var(--warn)}
+.d-tile.run{background:rgba(var(--glow),.08);border-color:var(--cyan2)} .d-tile.run .v{color:var(--cyan)}
+.d-tile.done{border-color:var(--ok-line)} .d-tile.done .k,.d-tile.done .v{color:var(--ok-text)}
+.d-tile.other{border-style:dashed;border-color:var(--dim-line)}
+.d-tile.zero .v{color:var(--faint)}
 .d-ai{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px}
-.d-aic{border:1px solid #2a3f5c;border-radius:10px;background:#0c1a2e;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.d-aic{border:1px solid var(--line2);border-radius:10px;background:var(--card2);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
 .d-aic .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
 .d-aic .mk{width:26px;height:26px;border-radius:50%;border:1px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--cyan)}
 .d-aic .rl{font-size:11px;color:var(--sub)} .d-aic .ct{font-size:12px} .d-aic .ls{font-size:11px;color:var(--sub)}
-.hl{color:#ffcf86} .d-late{color:#ff8a7a;font-weight:700}
+.hl{color:var(--warn-soft)} .d-late{color:var(--bad);font-weight:700}
 .d-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin:4px 0 10px}
 .d-legend h3{font-size:14px;color:var(--text)}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .dot.fresh{background:var(--cyan);box-shadow:0 0 8px var(--cyan)} .dot.warn{background:var(--warn)} .dot.stale{border:2px solid var(--sub)}
 .d-bots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px}
-.d-bot{display:flex;flex-direction:column;gap:7px;text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.92);padding:14px}
+.d-bot{display:flex;flex-direction:column;gap:7px;text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px}
 a.d-bot:hover{border-color:var(--cyan2)}
-.d-bot.stale{border-style:dashed;border-color:#4a5f7a;color:#b9c9d6}
-.d-bot.appr{border-color:#b8862c}
+.d-bot.stale{border-style:dashed;border-color:var(--dim-line);color:var(--stale-text)}
+.d-bot.appr{border-color:var(--warn-line)}
 .d-bot .top{display:flex;align-items:center;gap:8px} .d-bot .nm{font-size:15px;font-weight:700}
 .d-bot .boss{margin-left:auto;font-size:11px;color:var(--sub)} .d-bot .dp{font-size:12px;color:var(--sub)}
 .d-bot .job{font-size:14px;line-height:1.5;border:none;padding:0}
 .d-bot .st{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--sub)}
-.d-bot .ft{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--sub);border-top:1px solid #16294a;padding-top:8px}
-.pill{font-size:12px;border-radius:10px;padding:1px 8px;border:1px solid #4a5f7a;color:#c9e6f5;white-space:nowrap}
-.pill.承認待ち{background:var(--warn);border-color:var(--warn);color:#021018;font-weight:700}
-.pill.実行中{border-color:var(--cyan2);color:#9eeaff} .pill.完了{border-color:#2f8f6a;color:#a8e6cf}
-.pill.検証中{border-color:#6b5fb8;color:#d4c8ff} .pill.分析中{border-color:#b8862c;color:#ffcf86}
-.pill.担当振分{border-color:var(--cyan2);color:#c9e6f5} .pill.差し戻し,.pill.エラー{border-color:var(--warn);color:var(--warn)}
+.d-bot .ft{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--sub);border-top:1px solid var(--div);padding-top:8px}
+.pill{font-size:12px;border-radius:10px;padding:1px 8px;border:1px solid var(--dim-line);color:var(--chip-text);white-space:nowrap}
+.pill.承認待ち{background:var(--warn);border-color:var(--warn);color:var(--on-warn);font-weight:700}
+.pill.実行中{border-color:var(--cyan2);color:var(--run-text)} .pill.完了{border-color:var(--ok-line);color:var(--ok-text)}
+.pill.検証中{border-color:var(--violet-line);color:var(--violet-text)} .pill.分析中{border-color:var(--warn-line);color:var(--warn-soft)}
+.pill.担当振分{border-color:var(--cyan2);color:var(--chip-text)} .pill.差し戻し,.pill.エラー{border-color:var(--warn);color:var(--warn)}
 .d-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
 .d-two .d-card{margin-bottom:0}
-.d-list a{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:10px;align-items:center;text-decoration:none;color:var(--text);padding:8px 2px;border-bottom:1px solid #16294a;font-size:13px}
+.d-list a{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:10px;align-items:center;text-decoration:none;color:var(--text);padding:8px 2px;border-bottom:1px solid var(--div);font-size:13px}
 .d-list a:last-child{border-bottom:none} .d-list a:hover .t{color:var(--cyan)}
 .d-list .w{color:var(--sub);font-size:12px} .d-list .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .d-list .s{font-size:12px;color:var(--sub)}
-.d-field{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:13px;margin-top:14px;border:1px solid var(--line);border-radius:14px;background:rgba(10,20,36,.9);padding:12px 16px}
+.d-field{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:13px;margin-top:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px 16px}
 .d-field .k{color:var(--sub)}
 .d-empty{font-size:13px;color:var(--sub);line-height:1.7}
+.d-tabs{display:flex;gap:6px;margin-bottom:12px}
+.d-tabs button{background:none;border:1px solid var(--line);color:var(--sub);border-radius:20px;padding:6px 16px;font-size:13px;cursor:pointer}
+.d-tabs button.on{background:var(--cyan2);border-color:var(--cyan2);color:var(--on-accent);font-weight:700}
+.pill.緊急事項{border-color:var(--bad);color:var(--bad);font-weight:700} .pill.判断依頼{border-color:var(--warn);color:var(--warn)} .pill.重要事項{border-color:var(--violet-line);color:var(--violet-text)}
 .d-sub2{display:flex;justify-content:space-between;font-size:13px;color:var(--cyan);margin-bottom:6px} .d-sub2 .mono{color:var(--sub);font-size:12px}
-.d-q{display:flex;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid #16294a;font-size:13px} .d-q:last-child{border-bottom:none}
+.d-q{display:flex;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--div);font-size:13px} .d-q:last-child{border-bottom:none}
 .d-q a{flex:1;color:var(--text);text-decoration:none;line-height:1.5} .d-q a:hover{color:var(--cyan)} .d-q .mono{color:var(--cyan);margin-right:8px;font-size:12px}
 .d-ans{white-space:nowrap;font-size:12px;padding:4px 10px}
-.d-sub{display:flex;justify-content:space-between;font-size:12px;color:#a8e6cf;margin:12px 0 2px;border-top:1px dashed #2a3f5c;padding-top:10px} .d-ok{color:#a8e6cf;font-weight:700} .d-hint{font-size:11px;color:var(--sub);margin:4px 0 0}
+.d-sub{display:flex;justify-content:space-between;font-size:12px;color:var(--ok-text);margin:12px 0 2px;border-top:1px dashed var(--line2);padding-top:10px} .d-ok{color:var(--ok-text);font-weight:700} .d-hint{font-size:11px;color:var(--sub);margin:4px 0 0}
 .d-shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.d-shelf .sh{border:1px solid #2a3f5c;border-radius:12px;background:#0c1a2e;padding:10px 12px;border-top:3px solid var(--cyan2)}
+.d-shelf .sh{border:1px solid var(--line2);border-radius:12px;background:var(--card2);padding:10px 12px;border-top:3px solid var(--cyan2)}
 .d-shelf h4{font-size:13px;margin:0 0 6px;display:flex;justify-content:space-between;color:var(--cyan)} .d-shelf h4 span{color:var(--sub);font-weight:400}
-.d-book{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--text);padding:7px 2px;border-bottom:1px solid #16294a;font-size:13px}
+.d-book{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--text);padding:7px 2px;border-bottom:1px solid var(--div);font-size:13px}
 .d-book:last-child{border-bottom:none} .d-book:hover .t{color:var(--cyan)}
 .d-book .m{font-size:11px;color:var(--sub);display:flex;gap:8px;align-items:center}
-.d-book .draft{border:1px dashed #6b7f99;border-radius:8px;padding:0 6px} .d-book .main{border:1px solid #2f8f6a;color:#a8e6cf;border-radius:8px;padding:0 6px}
+.d-book .draft{border:1px dashed var(--dim-line);border-radius:8px;padding:0 6px} .d-book .main{border:1px solid var(--ok-line);color:var(--ok-text);border-radius:8px;padding:0 6px}
 .d-card h3 a.d-open{margin-left:14px;font-size:12px;color:var(--cyan);text-decoration:none;font-weight:400}
 .d-setup{border-color:var(--warn)} .d-setup p{font-size:14px;line-height:1.8}
-.d-foot{font-size:11px;color:#6f8fa8;margin-top:12px}
+.d-foot{font-size:11px;color:var(--faint);margin-top:12px}
 </style>
 </head>
 <body>
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv10.1</small></h1>
+  <h1>AI HAYATO<small>Lv11</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -260,6 +302,9 @@ a.d-bot:hover{border-color:var(--cyan2)}
   <textarea id="roster" placeholder="1行に1人：名前,部門,上司AI&#10;例）菜の花エコ担当,総務・営業,ChatGPT"></textarea>
   <div class="note">名簿に書いた担当者は、報告が無くても「報告なし」としてボードに並びます。書かなくても、ポストボックスの「Bot担当者名」から自動で並びます。</div>
   <div class="check"><input type="checkbox" id="boardOn"><span>広い画面（Macなど）では作業状況ボードを表示する</span></div>
+  <label>画面の色（押すとすぐ変わります）</label>
+  <div class="themes" id="themes"></div>
+  <div class="note">この端末に覚えます（MacとiPhoneで別々に選べます）。</div>
   <label>ハヤトの顔（キャラクター画像）</label>
   <div class="avrow"><img id="avPreview" alt=""><button id="avPick">画像を変える</button><button id="avReset">元に戻す</button></div>
   <input type="file" id="avFile" accept="image/*" style="display:none">
@@ -512,6 +557,63 @@ const JOBS = [
     ng: e => 'ポストボックスに書き戻せませんでした。' + e + (/知らない依頼/.test(e) ? '　GASを最新（Lv9）に貼り替えて、新バージョンでデプロイしてください。' : '')
   },
 
+  /* ---------- Lv11：Re:zenytheの報告（read）：判断が必要なこと・SIGNAL・4系統・司令本部の更新 ---------- */
+  {
+    id:'rezenythe_report', name:'Re:zenytheの報告', icon:'🚀', type:'read',
+    when:'リゼニス（Re:zenythe）の報告・状況、SIGNALの新着、AI会議の結果、各AIの開発状況（例：Claudeの開発状況は？）、出ているビジネス案、自分が判断すべき案件を聞かれた時。特定のページ（会議報告書・回答書など）の中身を聞かれたら page にその題名の言葉を入れる',
+    hint:/リゼニス|ゼニス|zenythe|SIGNAL|シグナル|AI会議|会議の結果|開発状況|ビジネス案|収益化|判断(する|が)必要|判断依頼/i,
+    inputs:{ page:{ label:'ページ', desc:'中身を読みたい司令本部のページ題名の言葉（例：回答書、会議、収益化）。全体の報告なら空' } },
+    source:'Notion 司令本部・ポストボックス、Gmail（SIGNAL）',
+    ready: () => gasReady() && gasInfo.notion,
+    reply:'最初に「あなたの判断が必要なこと」を件名で短く。次にSIGNALの新着（緊急・判断依頼を先に）、4つの系統の状態、司令本部の新しいページを、合わせて話し言葉5〜7文で。「ページの中身」があればそれを要約して答える。テストのSIGNALは触れない',
+    run: async (a) => {
+      const o = await loadOps(true);
+      if(!o.ops) return { ok:false, error:o.error || 'ポストボックスを読めませんでした' };
+      const z = o.rz || {}, h = o.hq || {}, x = o.ops;
+      const sig = (z.signal || []).filter(m => !m.テスト);
+      const by = {}; (h.flow || []).forEach(f => { const k = f.系統 || 'その他'; if(!by[k]) by[k] = f; });
+      const data = {
+        あなたの判断が必要:{ ポストボックスの承認待ち:x.approvals.map(i => i.件名), 承認済みでステータス未更新:x.approvedStale.map(i => i.件名),
+                            SIGNALの判断依頼と緊急:sig.filter(m => /判断|緊急/.test(m.種類)).map(m => m.種類 + '：' + m.本文.slice(0, 160)) },
+        SIGNAL3日:z.signal ? sig.map(m => ({ 種類:m.種類, 日時:clockText(m.日時), 未読:m.未読, 要点:m.本文.slice(0, 200) })) : '読めませんでした（' + (z.signalErr || '') + '）',
+        系統ごとの最新:RZ_LINES.map(k => by[k] ? { 系統:k, 工程:by[k].工程名, 状態:by[k].処理状態, 担当:by[k].担当, メモ:String(by[k]['結果・メモ'] || '').slice(0, 100) } : { 系統:k, 工程:'まだありません' }),
+        司令本部の新しいページ:(z.pages || []).slice(0, 8).map(pg => ({ 題名:pg.題名, 更新:clockText(pg.更新) })),
+        経験値バンクの回答待ち:(h.open || []).length };
+      const links = [];
+      if(a.page){
+        const w = nk(a.page), pg = (z.pages || []).find(p => nk(p.題名).includes(w)) || null;
+        const target = pg ? pg.id : HQ_URL.split('/').pop();
+        try{ const r = await gas('notion_read', { id:target }); data.ページの中身 = { 題名:pg ? pg.題名 : '司令本部', 本文:String(r.本文 || '').slice(0, 4000) }; links.push({ label:pg ? pg.題名 : '司令本部', url:pg ? pg.url : HQ_URL }); }
+        catch(e){ data.ページの中身 = '読めませんでした（' + e.message + '）'; }
+      }
+      return { ok:true, where:'Notion 司令本部', url:HQ_URL, data, linksTitle:'🚀 開く', links };
+    }
+  },
+
+  /* ---------- Lv11：経験値バンクの答えを消す（commit） ---------- */
+  {
+    id:'exp_clear', name:'答えを消す', icon:'🧹', type:'commit', verb:'消去',
+    when:'経験値バンクの質問への答えを消して・取り消してと言われた時（例：質問2の答えを消して）',
+    hint:/答え.{0,4}(消|取り消|削除)|回答.{0,4}(消|取り消|削除)/,
+    inputs:{ question_id:{ label:'質問番号', desc:'「質問○」の番号', type:'INTEGER' }, question:{ label:'質問', desc:'番号がわからない時、質問の言葉の一部' } },
+    source:'Notion「🧠 経験値バンク」',
+    ready: () => gasReady() && gasInfo.notion,
+    preview: a => {
+      const f = HQ && HQ.exp ? findQuestion(HQ.exp, a.question_id, a.question) : {};
+      return [['質問', f.hit ? qLabel(f.hit) : (a.question_id ? '質問' + a.question_id : a.question || '（特定できません）')], ['今の答え', f.hit ? String(f.hit.本人の回答 || '（空）').slice(0, 120) : ''], ['変更', '答えを消して「回答待ち」に戻す']];
+    },
+    run: async (a) => {
+      const h = await loadHQ(true); if(!h.exp) return { ok:false, error:h.err || '経験値バンクを読めませんでした' };
+      const f = findQuestion(h.exp, a.question_id, a.question);
+      if(!f.hit) return { ok:false, error:'どの質問か特定できません' };
+      const r = await gas('notion_update', { id:f.hit.id, record:{ 本人の回答:'', 状態:'回答待ち' } });
+      HQ = null; if(isWide()) setTimeout(() => loadOps(true), 500);
+      return { ok:true, where:'Notion 経験値バンク「' + qLabel(f.hit).slice(0, 30) + '」', url:r.url || f.hit.url, label:qLabel(f.hit) };
+    },
+    ok: r => r.label.split('：')[0] + 'の答えを消して、回答待ちに戻しました。',
+    ng: e => '答えを消せませんでした。' + e
+  },
+
   /* ---------- Lv10.1：Googleカレンダーを見る（read） ---------- */
   {
     id:'calendar', name:'カレンダー', icon:'📆', type:'read',
@@ -637,7 +739,8 @@ const JOBS = [
     inputs:{
       question_id:{ label:'質問番号', desc:'「質問○」の番号（わかる時だけ）', type:'INTEGER' },
       question:   { label:'質問', desc:'番号がわからない時、質問の言葉の一部' },
-      answer:     { label:'回答', desc:'本人の答え（要約しすぎない）', required:true }
+      answer:     { label:'回答', desc:'本人の答え（要約しすぎない）', required:true },
+      mode:       { label:'書き方', desc:'「書き直して」「言い直す」と言われたら「書き直し」。それ以外は「追記」', options:['追記','書き直し'] }
     },
     source:'Notion「🧠 経験値バンク」',
     ready: () => gasReady() && gasInfo.notion,
@@ -648,13 +751,18 @@ const JOBS = [
     },
     preview: a => {
       const f = HQ && HQ.exp ? findQuestion(HQ.exp, a.question_id, a.question) : {};
-      return [['質問', f.hit ? qLabel(f.hit) : (a.question_id ? '質問' + a.question_id : a.question || '（特定できません）')], ['回答', a.answer], ['状態', '回答あり にする']];
+      const rows = [['質問', f.hit ? qLabel(f.hit) : (a.question_id ? '質問' + a.question_id : a.question || '（特定できません）')], ['回答', a.answer],
+                    ['書き方', a.mode === '書き直し' ? '前の答えを消して書き直す' : (f.hit && String(f.hit.本人の回答 || '').trim() ? '前の答えに追記する' : '新しく記録')], ['状態', '回答あり にする']];
+      if(secretHit(a.answer)) rows.push(['⚠️ 注意', '電話番号・口座・パスワードなどの機密が含まれているかもしれません。残してよい内容か確かめてください']);
+      return rows;
     },
     run: async (a) => {
       const h = await loadHQ(true); if(!h.exp) return { ok:false, error:h.err || '経験値バンクを読めませんでした' };
       const f = findQuestion(h.exp, a.question_id, a.question);
       if(!f.hit) return { ok:false, error:'どの質問への答えか特定できません（回答待ち：' + (f.list || []).map(qLabel).join('／').slice(0, 120) + '）' };
-      const r = await gas('notion_update', { id:f.hit.id, record:{ 状態:'回答あり' }, append:{ 本人の回答:'（' + nowText() + '・AIハヤトで音声回答）' + a.answer } });
+      const text = '（' + nowText() + '・AIハヤトで音声回答）' + a.answer;
+      const r = a.mode === '書き直し' ? await gas('notion_update', { id:f.hit.id, record:{ 状態:'回答あり', 本人の回答:text } })
+                                      : await gas('notion_update', { id:f.hit.id, record:{ 状態:'回答あり' }, append:{ 本人の回答:text } });
       HQ = null; if(isWide()) setTimeout(() => loadOps(true), 500);
       return { ok:true, where:'Notion 経験値バンク「' + qLabel(f.hit).slice(0, 30) + '」', url:r.url || f.hit.url, label:qLabel(f.hit) };
     },
@@ -1626,12 +1734,30 @@ function takePhoto(){ const p = pendingImg; pendingImg = null; $('pending').clas
 
 /* ========== 10. 設定画面 ========== */
 const dlg = $('settings');
+/* ---- テーマ（画面の色）：CSSの data-theme を切り替えるだけ。音声・検索などの処理には触れない ---- */
+const THEMES = [
+  { id:'original', name:'オリジナル', sw:'linear-gradient(135deg,#050b16 55%,#3ee6ff)', bar:'#050b16' },
+  { id:'sky',      name:'スカイブルー', sw:'linear-gradient(135deg,#e8f5fd 55%,#1a9ee0)', bar:'#e8f5fd' },
+  { id:'white',    name:'ホワイト',   sw:'linear-gradient(135deg,#ffffff 55%,#1f7fcf)', bar:'#f5f6f8' },
+  { id:'emerald',  name:'エメラルド', sw:'linear-gradient(135deg,#03130f 55%,#3ff0c2)', bar:'#03130f' }
+];
+function applyTheme(id){
+  const t = THEMES.find(x => x.id === id) || THEMES[0];
+  if(t.id === 'original') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t.id;
+  const m = document.querySelector('meta[name="theme-color"]'); if(m) m.content = t.bar;
+  return t;
+}
+function drawThemes(){
+  const box = $('themes'); if(!box) return;
+  box.innerHTML = THEMES.map(t => '<button type="button" data-t="' + t.id + '" class="' + ((S.theme || 'original') === t.id ? 'on' : '') + '"><i style="background:' + t.sw + '"></i>' + t.name + '</button>').join('');
+  box.querySelectorAll('button').forEach(b => b.onclick = () => { S.theme = applyTheme(b.dataset.t).id; save(); drawThemes(); });
+}
 function openSettings(){
   $('apiKey').value = S.apiKey; $('model').value = S.model; $('userName').value = S.userName;
   $('persona').value = S.persona; $('speakOn').checked = S.speakOn; $('rate').value = S.rate;
   loadVoices(10); $('pitch').value = S.pitch;
   $('gasUrl').value = S.gasUrl; $('gasSecret').value = S.gasSecret; $('gasMsg').textContent = '';
-  $('roster').value = S.roster || ''; $('boardOn').checked = S.boardOn !== false;
+  $('roster').value = S.roster || ''; $('boardOn').checked = S.boardOn !== false; drawThemes();
   dlg.showModal();
 }
 $('setBtn').addEventListener('click', openSettings);
@@ -1927,6 +2053,7 @@ async function loadHQ(force){
   if(fl.status === 'fulfilled') h.flow = fl.value.rows || []; else h.err = h.err || fl.reason.message;
   HQ = h; return h;
 }
+const secretHit = t => /(\d{2,4}[-‐ー]\d{2,4}[-‐ー]\d{3,4})|\d{8,}|口座|暗証|パスワード|マイナンバー|カード番号|在留カード/.test(String(t || ''));   // 機密の目安
 const qNum = q => (String(q.ID || '').match(/\d+$/) || [''])[0];   // 「RZ-EXP-1」→「1」
 const qLabel = q => (qNum(q) ? '質問' + qNum(q) + '：' : '') + q.質問;
 function findQuestion(rows, id, text){
@@ -1969,6 +2096,10 @@ async function loadOps(force){
         if(mn.status === 'fulfilled'){ MANUALS = { t:Date.now(), rows:mn.value.行 || [] }; res.manuals = MANUALS.rows; }
         else res.manualErr = mn.reason.message;
         try{ res.hq = await loadHQ(true); }catch(e){ res.hq = { err:e.message }; }
+        const [hp, sg] = await Promise.allSettled([ gas('hq_pages'), gas('signal', { days:3 }) ]);
+        res.rz = { pages: hp.status === 'fulfilled' ? hp.value.pages : null, pagesErr: hp.status === 'fulfilled' ? '' : hp.reason.message,
+                   signal: sg.status === 'fulfilled' ? sg.value.items : null, signalErr: sg.status === 'fulfilled' ? '' : sg.reason.message };
+        if(res.ops && res.rz.signal){ const ask = res.rz.signal.filter(x => !x.テスト && /判断|緊急/.test(x.種類)); if(ask.length) res.ops.summary += 'SIGNALから判断依頼・緊急事項が' + ask.length + '件届いています。'; }
         if(res.ops && res.hq && res.hq.open) res.ops.summary += res.hq.open.length ? '経験値バンクに、回答待ちの質問が' + res.hq.open.length + '件あります。' : '';
       }
       const [plan, cal, fault] = await Promise.allSettled([
@@ -1986,10 +2117,66 @@ async function loadOps(force){
   })().finally(() => { opsBusy = null; });
   return opsBusy;
 }
+/* ---- Lv11：Re:zenythe タブ（判断が必要なこと・SIGNAL・4系統・司令本部の新しいページ） ---- */
+const RZ_LINES = ['経験値エンジン', 'AI間連携', '経済・市場情報', 'AIハヤト改良'];
+const sigTitle = m => { const t = String(m.本文 || ''); const k = t.match(/【新着情報の要約】\s*([^\n。]{4,60})/) || t.match(/【(?:件名|要約|内容)】\s*([^\n。]{4,60})/);
+  return k ? k[1].trim() : (t.replace(/【[^】]*】[^\n]*\n?/g, '').trim().split(/\n|。/)[0] || m.種類).slice(0, 60); };
+function rzHint(e){
+  return /知らない依頼/.test(e) ? 'GASを最新（Lv11）に貼り替えて、新バージョンでデプロイしてください。'
+       : /権限|permission|authoriz|許可/i.test(e) ? 'Apps Scriptで関数「signalTest」を一度実行して、Gmailを読む許可を出してください。'
+       : /object_not_found|Could not find/i.test(e) ? '司令本部のページで「…」→「接続」に「AIハヤト」が入っているか確認してください。' : '';
+}
+function rzBody(o){
+  const x = o.ops, z = o.rz || {}, h = o.hq || {};
+  const sig = (z.signal || []).filter(m => !m.テスト);
+  const asks = sig.filter(m => /判断|緊急/.test(m.種類));
+  const row = (url, left, title, sub, pill, pcls) => '<a href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(title) + '"><span class="w mono">' + left + '</span><span class="t">' + esc(title) +
+    (sub ? '<span class="s"> ／ ' + esc(sub) + '</span>' : '') + '</span>' + (pill ? '<span class="pill ' + esc(pcls || pill) + '">' + esc(pill) + '</span>' : '<span></span>') + '</a>';
+  let b = '<div class="d-card d-say"><span class="d-lbl mono">HAYATO SAYS</span><p>' + esc(rzSummary(o)) + '</p><button class="d-btn" id="dSpeakRz" type="button">読み上げ</button></div>';
+  // 判断が必要
+  const need = x.approvals.length + x.approvedStale.length + asks.length;
+  b += '<div class="d-card"><h3><span class="dot warn"></span>あなたの判断が必要<span class="d-aside mono">' + need + '件</span></h3><div class="d-list">' +
+    (need ? x.approvals.slice(0, 5).map(i => row(i.url, dueLabel(i), i.件名, 'ポストボックス', i.ステータス)).join('') +
+            x.approvedStale.slice(0, 3).map(i => row(i.url, '<span class="d-ok">承認済</span>', i.件名, 'ステータス未更新', i.ステータス)).join('') +
+            asks.slice(0, 5).map(m => row(m.url, esc(clockText(m.日時)), sigTitle(m), 'SIGNAL', m.種類)).join('')
+          : '<p class="d-empty">今、判断が必要なものはありません</p>') + '</div><p class="d-hint">ハヤトに「○○、承認」「○○は差し戻し、理由は〜」と話すと、ポストボックスに書き戻します。</p></div>';
+  // 4系統
+  const by = {}; (h.flow || []).forEach(f => { const k = f.系統 || 'その他'; if(!by[k]) by[k] = f; });
+  b += '<div class="d-card"><h3>4つの系統<span class="d-note">工程管理のいちばん新しい工程</span></h3><div class="d-ai">' +
+    RZ_LINES.map(k => { const f = by[k];
+      return '<div class="d-aic"><div class="nm">' + esc(k) + '</div>' + (f ? '<div class="ct">' + esc(f.工程名 || '') + '</div><div class="ls"><span class="pill ' +
+        esc(f.処理状態 === 'エラー' ? 'エラー' : f.処理状態 === '完了' ? '完了' : f.処理状態 === '処理中' ? '実行中' : '') + '">' + esc(f.処理状態 || '—') + '</span> ' + esc(f.担当 || '') + '</div>'
+        : '<div class="ls">まだ工程がありません</div>') + '</div>'; }).join('') + '</div></div>';
+  // SIGNAL
+  b += '<div class="d-two"><div class="d-card"><h3><span class="dot fresh"></span>SIGNAL（3日）<span class="d-aside mono">' + (z.signal ? sig.length + '件' : '') + '</span></h3><div class="d-list">' +
+    (z.signal ? (sig.length ? sig.slice(0, 7).map(m => row(m.url, esc(clockText(m.日時)), sigTitle(m), m.未読 ? '未読' : '', m.種類)).join('')
+                            : '<p class="d-empty">3日以内のSIGNALはありません</p>')
+              : '<p class="d-empty">SIGNALを読めませんでした（' + esc(z.signalErr || '') + '）。' + rzHint(z.signalErr || '') + '</p>') + '</div></div>' +
+  // 司令本部の新しいページ
+    '<div class="d-card"><h3>司令本部の新しいページ<a class="d-open" href="' + HQ_URL + '" target="_blank" rel="noopener">開く ↗</a></h3><div class="d-list">' +
+    (z.pages ? (z.pages.length ? z.pages.slice(0, 7).map(pg => row(pg.url, esc(clockText(pg.更新)), pg.題名, pg.種類 === 'データベース' ? 'データベース' : '')).join('') : '<p class="d-empty">ページがありません</p>')
+             : '<p class="d-empty">司令本部を読めませんでした（' + esc(z.pagesErr || '') + '）。' + rzHint(z.pagesErr || '') + '</p>') + '</div></div></div>';
+  b += '<div class="d-foot mono">5分ごとに自動で更新します。ハヤトに「今日のリゼニスの報告は？」と聞くと、まとめて読み上げます。</div>';
+  return b;
+}
+function rzSummary(o){
+  const x = o.ops, z = o.rz || {}, h = o.hq || {};
+  const sig = (z.signal || []).filter(m => !m.テスト), asks = sig.filter(m => /判断|緊急/.test(m.種類));
+  const say = [];
+  const need = x.approvals.length + x.approvedStale.length + asks.length;
+  say.push(need ? 'あなたの判断が必要なものが' + need + '件あります。' : '今、あなたの判断が必要なものはありません。');
+  if(z.signal) say.push('この3日のSIGNALは' + sig.length + '件' + (sig.filter(m => m.未読).length ? '、うち未読' + sig.filter(m => m.未読).length + '件' : '') + 'です。');
+  const day = (z.pages || []).filter(pg => hoursAgo(pg.更新) < 24);
+  if(day.length) say.push('司令本部で、この24時間に' + day.length + 'ページが更新されました。');
+  if(h.open && h.open.length) say.push('経験値バンクの回答待ちは' + h.open.length + '件です。');
+  return say.join('');
+}
 function renderDash(){
   const el = $('dash'); if(!el || !isWide()) return;
   const o = OPS;
-  const head = '<div class="d-head"><h2>GROK BOT OPERATIONS</h2><span class="d-src">Notion ポストボックス（共通台帳）から自動更新</span>' +
+  const rz = S.dashTab === 'rz';
+  const head = '<div class="d-tabs"><button type="button" data-tab="ops" class="' + (rz ? '' : 'on') + '">📡 作業状況</button><button type="button" data-tab="rz" class="' + (rz ? 'on' : '') + '">🚀 Re:zenythe</button></div>' +
+    '<div class="d-head"><h2>' + (rz ? 'RE:ZENYTHE COMMAND' : 'GROK BOT OPERATIONS') + '</h2><span class="d-src">' + (rz ? 'Notion 司令本部・SIGNAL（Gmail）から自動更新' : 'Notion ポストボックス（共通台帳）から自動更新') + '</span>' +
     '<div class="d-right"><span class="d-src mono">最終更新 ' + (o ? clockText(new Date(o.t).toISOString()) : '—') + '</span>' +
     '<button class="d-btn" id="dRefresh" type="button">↻ 今すぐ更新</button></div></div>';
   if(!o){ el.innerHTML = head + '<div class="d-card"><p class="d-empty">読み込んでいます…</p></div>'; bindDash(); return; }
@@ -2071,12 +2258,14 @@ function renderDash(){
     (f.plan != null ? '<span>今日の予定 ' + f.plan + '件' + (f.next ? '（' + esc((f.next.開始 ? f.next.開始 + ' ' : '') + f.next.題名) + '）' : '') + '</span>' : '') +
     (f.fault != null ? '<span class="' + (f.fault ? 'hl' : '') + '">未対応の故障 ' + f.fault + '件' + (f.faultTop ? '（' + esc(f.faultTop) + (f.fault > 1 ? 'ほか' : '') + '）' : '') + '</span>' : '') + '</div>';
   body += '<div class="d-foot mono">5分ごとに自動で更新します。カードを押すとNotionのページが開きます。</div>';
-  el.innerHTML = head + body;
+  el.innerHTML = head + (rz && o.ops ? rzBody(o) : body);
   bindDash();
 }
 function bindDash(){
   const r = $('dRefresh'); if(r) r.onclick = () => { OPS = null; renderDash(); loadOps(true); };
+  document.querySelectorAll('.d-tabs button').forEach(b => b.onclick = () => { S.dashTab = b.dataset.tab; save(); renderDash(); $('dash').scrollTop = 0; });
   const sp = $('dSpeak'); if(sp) sp.onclick = () => { if(OPS && OPS.ops) speak(OPS.ops.summary, 'ja', true); };
+  const sr = $('dSpeakRz'); if(sr) sr.onclick = () => { if(OPS && OPS.ops) speak(rzSummary(OPS), 'ja', true); };
   document.querySelectorAll('.d-ans').forEach(b => b.onclick = () => {   // 「答える」→ 入力欄に下書き。話しかけてもOK
     const t = $('text'); t.value = '質問' + b.dataset.q + 'の答え：'; t.focus(); t.setSelectionRange(t.value.length, t.value.length);
   });
@@ -2085,6 +2274,7 @@ window.addEventListener('resize', () => { const was = document.body.classList.co
 setInterval(() => { if(isWide() && !document.hidden) loadOps(true); }, 5 * 60 * 1000);
 
 /* ========== 起動 ========== */
+applyTheme(S.theme);
 applyWide();
 if(isWide()) setTimeout(() => loadOps(true), 300);
 applyAvatar();
