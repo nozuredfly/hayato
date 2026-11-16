@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv11.1</title>
+<title>AIハヤト Lv11.2</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -239,7 +239,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv11.1</small></h1>
+  <h1>AI HAYATO<small>Lv11.2</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -695,6 +695,42 @@ const JOBS = [
     },
     ok: () => 'ポストボックスに指示を登録しました。Grok Botが見て動きます。',
     ng: e => '指示を登録できませんでした。' + e
+  },
+
+  /* ---------- Lv11.2：Brain meetings に案件を出す（commit）→ ポストボックスに正しく書き分けて起票 ---------- */
+  {
+    id:'bm_case', name:'会議にかける', icon:'🧠', type:'commit', verb:'起票',
+    when:'案件・相談ごとを「会議にかけて」「AI幹部に考えさせて」「案件にして」「Brain meetingsに出して」と言われた時（例：蔵王茶屋の米の運搬管理を会議にかけて）。Grok Botの担当者個人への指示・催促はこれではなく「Botへの指示」',
+    hint:/会議にかけ|会議に出|ブレイン|brain ?meeting|\bBM\b|案件にして|起票|AI幹部に(考え|相談|聞い)/i,
+    inputs:{
+      title:   { label:'件名', desc:'案件を短く（20字前後）。【】は付けない', required:true },
+      content: { label:'相談内容', desc:'何を決めたいか・困っていること・背景を、本人の言葉を生かして具体的に。です・ます調', required:true },
+      goal:    { label:'完了条件', desc:'どうなったら終わりか。言われなければ「結論案と次の一手が決まること」' },
+      priority:{ label:'優先度', desc:'言われなければ「中」', options:['高','中','低'] },
+      due:     { label:'期限', desc:'言われた時だけ YYYY/MM/DD' },
+      main:    { label:'議長（まとめ役）', desc:'言われなければ「ChatGPT」', options:['ChatGPT','Claude','Grok'] }
+    },
+    source:'Notion「📮 ポストボックス（共通台帳）」に新規の行（件名【BM】／ステータス 担当振分／ChatGPT・Claude・Grokの3者に回答依頼）',
+    ready: () => gasReady() && gasInfo.notion,
+    preview: a => [['件名', '【BM】' + a.title], ['相談内容', a.content], ['完了条件', a.goal || '結論案と次の一手が決まること'],
+                   ['優先度', a.priority || '中'], ['期限', a.due || ''], ['議長', a.main || 'ChatGPT'],
+                   ['回答するAI', 'ChatGPT（アクセル）・Claude（ブレーキ）・Grok（現場目線）'], ['ステータス', '担当振分（各AIの見回りで回答が入ります）']],
+    run: async (a) => {
+      const main = a.main || 'ChatGPT';
+      const others = ['ChatGPT','Claude','Grok'].filter(x => x !== main);
+      const record = {
+        件名:'【BM】' + a.title, ステータス:'担当振分', 起案者:BOSS, 優先度:a.priority || '中',
+        主担当AI:main, 確認担当AI:others[0], 担当AI拡張:others[1],
+        指示内容:a.content + '\n\n【回答のしかた】ChatGPT＝アクセル（進める案）／Claude＝ブレーキ（リスク・反対意見）／Grok＝現場目線（実務でどう回すか）。各AIは自分の「○○回答」欄にだけ書き、他のAIの欄は書き換えない。議長（' + main + '）は3者がそろったら「検証結果」に合意点・対立点・結論案をまとめ、ステータスを承認待ちにする。\n（' + nowText() + '・' + BOSS + 'よりAIハヤト経由）',
+        完了条件:a.goal || '結論案と次の一手が決まること'
+      };
+      if(a.due) record.実行期限 = a.due;
+      const r = await gas('notion_add', { id:POSTBOX_ID, record });
+      if(isWide()) setTimeout(() => loadOps(true), 500);
+      return { ok:true, where:'Notion ポストボックス（【BM】担当振分）', url:r.url, data:{ 入らなかった項目:r.unknown } };
+    },
+    ok: () => 'Brain meetingsに起票しました。ChatGPT・Claude・Grokの回答がそろったら、議長がまとめて承認待ちにします。',
+    ng: e => '起票できませんでした。' + e
   },
 
   /* ---------- Lv9：司令本部の状況（read） ---------- */
@@ -1978,7 +2014,7 @@ function buildOps(all){
   const ais = AIS.map(a => {
     const inv = items.filter(i => i.主担当AI === a.name || i.確認担当AI === a.name || i.担当AI拡張 === a.name || i.部門 === a.dept);
     const act = inv.filter(i => i.ステータス !== '完了');
-    const wait = a.ans ? act.filter(i => ['新規','担当振分','分析中','検証中'].includes(i.ステータス) && (i.主担当AI === a.name || i.確認担当AI === a.name) && !(i.回答 || {})[a.name]).length : null;   // AIの出番の段階だけ数える
+    const wait = a.ans ? act.filter(i => ['新規','担当振分','分析中','検証中'].includes(i.ステータス) && (i.主担当AI === a.name || i.確認担当AI === a.name || i.担当AI拡張 === a.name) && !(i.回答 || {})[a.name]).length : null;   // AIの出番の段階だけ数える
     const last = inv.reduce((m, i) => (!m || i.更新 > m) ? i.更新 : m, '');
     return Object.assign({}, a, { active:act.length, wait, last });
   });
