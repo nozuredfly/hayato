@@ -1643,7 +1643,7 @@ async function getWeather(){
   for(let i = 0; i < 2; i++){   // 一時的な失敗に備えて、1回だけやり直す
     try{ r = await fetch(url, { cache:'no-store' }); if(r.ok) break; last = 'HTTP ' + r.status; }
     catch(e){ last = navigator.onLine ? '通信できません' : 'オフライン'; r = null; }
-    await new Promise(ok => setTimeout(ok, 1500));
+    if(i === 0) await new Promise(ok => setTimeout(ok, 1200));
   }
   if(!r || !r.ok) throw new Error(last || '不明');
   const d = await r.json();
