@@ -1639,8 +1639,13 @@ async function getWeather(){
     '&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m' +
     '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max' +
     '&wind_speed_unit=ms&timezone=Asia%2FTokyo&forecast_days=7';
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('weather ' + r.status);
+  let r, last = '';
+  for(let i = 0; i < 2; i++){   // 一時的な失敗に備えて、1回だけやり直す
+    try{ r = await fetch(url, { cache:'no-store' }); if(r.ok) break; last = 'HTTP ' + r.status; }
+    catch(e){ last = navigator.onLine ? '通信できません' : 'オフライン'; r = null; }
+    await new Promise(ok => setTimeout(ok, 1500));
+  }
+  if(!r || !r.ok) throw new Error(last || '不明');
   const d = await r.json();
   wxCache = { t:Date.now(), d };
   return d;
@@ -1671,7 +1676,7 @@ async function showWeatherBar(){
     $('wx').innerHTML = WX_ICON(c.weather_code) + ' <b>' + Math.round(c.temperature_2m) + '℃</b> ' + (WX_CODE[c.weather_code]||'') +
       '　今日 ' + Math.round(dd.temperature_2m_max[0]) + '/' + Math.round(dd.temperature_2m_min[0]) + '℃ ☂' + dd.precipitation_probability_max[0] + '%' +
       '　<span style="margin-left:auto">田原市</span>';
-  }catch(e){ $('wx').textContent = '天気を取得できませんでした（タップで再読込）'; wxCache = null; }
+  }catch(e){ $('wx').textContent = '天気を取得できませんでした：' + e.message + '（タップで再読込）'; wxCache = null; }
 }
 $('wx').addEventListener('click', () => {
   if($('wx').textContent.includes('取得できません')){ showWeatherBar(); return; }
