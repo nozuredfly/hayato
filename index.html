@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv12.1</title>
+<title>AIハヤト Lv13</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -193,6 +193,8 @@ input.secret.show{-webkit-text-security:none;text-security:none}
 .d-bmr .bm-a.ok{color:var(--cyan)}
 .d-bmr .ch{font-size:11px;color:var(--sub);text-align:right}
 .d-bmr .pill{justify-self:end}
+.d-run{grid-template-columns:70px 1fr 140px 110px 92px}
+.d-run .ch{text-align:left}
 @media (max-width:700px){.d-bmr{grid-template-columns:1fr auto}.d-bmr .no,.d-bmr .ch{display:none}}
 .d-aic{border:1px solid var(--line2);border-radius:10px;background:var(--card2);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
 .d-aic .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
@@ -251,7 +253,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv12.1</small></h1>
+  <h1>AI HAYATO<small>Lv13</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -511,8 +513,8 @@ const JOBS = [
   /* ---------- 作業状況（read）：Grok Bot・AI幹部・承認待ち ---------- */
   {
     id:'ops_status', name:'作業状況', icon:'📡', type:'read',
-    when:'Grok BotやAI幹部の作業状況、報告が止まっている担当者、承認待ち・回答待ちの案件を聞かれた時（例：Botの状況は？／止まっているのは誰？／承認待ちを読んで／Claudeの回答待ちは？）',
-    hint:/bot|ボット|grok|作業状況|報告状況|止まって|承認待ち|回答待ち|ポストボックス|担当者/i,
+    when:'Grok BotやAI幹部の作業状況、報告が止まっている担当者、承認待ち・回答待ち・実行中の案件を聞かれた時（例：Botの状況は？／止まっているのは誰？／承認待ちを読んで／Claudeの回答待ちは？）',
+    hint:/bot|ボット|grok|作業状況|報告状況|止まって|承認待ち|回答待ち|実行中|ポストボックス|担当者/i,
     inputs:{ focus:{ label:'知りたいこと', desc:'全体／承認待ち／止まっている担当者／担当者名やAI名（省略で全体）' } },
     source:'Notion「ポストボックス（共通台帳）」',
     ready: () => gasReady() && gasInfo.notion,
@@ -528,6 +530,7 @@ const JOBS = [
         AIの回答待ち:x.ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件'),
         担当者ごと:x.bots.map(b => ({ 名前:b.name, 上司:b.boss, いまの仕事:b.cur ? b.cur.件名 : 'なし', 状態:b.cur ? b.cur.ステータス : '', 最終報告:b.last ? ago(b.last) : '報告なし' })),
         承認済みでステータス未更新:x.approvedStale.map(i => i.件名),
+        実行中:x.running.map(r => r.i.件名 + '（' + r.who + (r.i.期限 ? '、期限' + shortDate(r.i.期限) : '') + (r.reported ? '、報告あり' : r.late ? '、期限切れ・報告なし' : '') + '）'),
         今日の報告:x.todayReports.map(i => i.件名 + '（' + (i.Bot || '担当未記入') + '）'),
         担当者未記入の案件:x.unassigned.length, 進行中:x.openCount, 完了7日:x.weekDone } };
     }
@@ -541,7 +544,9 @@ const JOBS = [
     inputs:{
       case_title:{ label:'案件', desc:'案件の件名（【候補】からそのまま。わからなければ言われた言葉）', required:true },
       decision:  { label:'判断', desc:'承認／差し戻し／保留', options:['承認','差し戻し','保留'], required:true },
-      comment:   { label:'ひとこと', desc:'理由や指示（差し戻しは理由を必ず。言われなければ空）' }
+      comment:   { label:'ひとこと', desc:'理由や指示（差し戻しは理由を必ず。言われなければ空）' },
+      executor:  { label:'実行担当', desc:'会議の案件を承認する時だけ：実行させるGrok Botの担当者名（【担当者】からそのまま）。言われなければ空' },
+      due:       { label:'実行期限', desc:'会議の案件を承認する時だけ：言われたら YYYY/MM/DD（「金曜まで」は日付に直す）' }
     },
     source:'Notion「📮 ポストボックス（共通台帳）」',
     ready: () => gasReady() && gasInfo.notion,
@@ -549,13 +554,16 @@ const JOBS = [
       if(!/承認|差し戻|差戻|保留|却下|ゴーサイン|OK/.test(ctx.text || '')) return '';
       const o = await loadOps(); if(!o.ops) return '';
       const c = o.ops.approvals.concat(o.ops.approvedStale, (o.items || []).filter(i => !isReport(i) && !['完了','承認待ち'].includes(i.ステータス)).slice(0, 8));
-      return '【候補】' + [...new Set(c.map(i => i.件名 + '（' + i.ステータス + '）'))].join(' / ');
+      return '【候補】' + [...new Set(c.map(i => i.件名 + '（' + i.ステータス + (isMeeting(i) ? '・会議' : '') + '）'))].join(' / ') +
+             '\n【担当者】' + o.ops.bots.map(b => b.name).join(' / ') +
+             '\n（会議の案件を「承認」する時は、実行させるGrok Botの担当者と期限も聞く。言われていなければ、確認カードを出す前に「どの担当者に、いつまでにやらせますか？」と聞く）';
     },
     preview: a => {
       const m = OPS && OPS.items ? findCase(OPS.items, a.case_title) : [];
       const i = m.length === 1 ? m[0] : null, d = DECIDE[a.decision];
       return [['案件', i ? i.件名 : a.case_title + (m.length > 1 ? '（候補が' + m.length + '件あります）' : '')], ['いまの状態', i ? i.ステータス + (i.承認済み ? '・承認済み' : '') : '—'],
-              ['判断', a.decision], ['Notionの変更', i && d ? d(i).change : '—'], ['ひとこと', a.comment || '']];
+              ['判断', a.decision], ['Notionの変更', i && d ? d(i, a.comment, a).change : '—'], ['ひとこと', a.comment || '']]
+             .concat(a.decision === '承認' && i && isMeeting(i) ? [['実行担当', a.executor || '（未指定）'], ['実行期限', a.due || '']] : []);
     },
     run: async (a) => {
       const o = await loadOps(true); if(!o.ops) return { ok:false, error:o.error || 'ポストボックスを読めませんでした' };
@@ -568,8 +576,13 @@ const JOBS = [
       if(a.decision === '差し戻し' && isMeeting(i) && !String(i.検証結果 || '').trim()){   // 議長まとめも記録に残すため、一覧に無ければページから読む
         try{ const r = await gas('notion_read', { id:i.id }); const pr = r.プロパティ || r.properties || r; if(pr && pr.検証結果) i.検証結果 = pr.検証結果; }catch(e){}
       }
-      const x = d(i, a.comment);
-      const note = '【' + BOSS + '／' + nowText() + '・AIハヤト】' + (x.rethink ? '差し戻し（再審議）' : a.decision) + (a.comment ? '：' + a.comment : '');
+      if(a.decision === '承認' && isMeeting(i) && !String(a.executor || '').trim())
+        return { ok:false, error:'会議の案件を承認する時は、実行させるGrok Botの担当者を教えてください（例：承認、実行は日報・管理係、金曜まで）' };
+      if(a.decision === '承認' && isMeeting(i) && !String(i.検証結果 || '').trim()){
+        try{ const r = await gas('notion_read', { id:i.id }); const pr = r.プロパティ || r.properties || r; if(pr && pr.検証結果) i.検証結果 = pr.検証結果; }catch(e){}
+      }
+      const x = d(i, a.comment, a);
+      const note = '【' + BOSS + '／' + nowText() + '・AIハヤト】' + (x.rethink ? '差し戻し（再審議）' : x.go ? '承認・実行指示（' + a.executor + '）' : a.decision) + (a.comment ? '：' + a.comment : '');
       const r = await gas('notion_update', { id:i.id, record:x.record, append:Object.assign({ 最終判断:note }, x.append || {}) });
       if(isWide()) setTimeout(() => loadOps(true), 500); else OPS = null;
       return { ok:true, where:'Notion ポストボックス「' + i.件名 + '」', url:r.url || i.url, title:i.件名, change:x.change };
@@ -2065,7 +2078,7 @@ const isReport = i => /^\s*【(日報|日次)/.test(i.件名 || '');   // 毎日
 /* Lv12：Brain meetings（会議中の案件）。【BM】の案件か、AIの回答が1つでも入っている未完了の案件 */
 const BM_AIS = [{ name:'ChatGPT', mark:'GP', role:'アクセル' }, { name:'Claude', mark:'CL', role:'ブレーキ' }, { name:'Grok', mark:'GR', role:'現場目線' }];
 const ansOf = (i, n) => { const v = String((i.回答 || {})[n] || '').trim(); return (v && v !== String(i.件名 || '').trim() && v !== String(i.Bot || '').trim()) ? v : ''; };   // 件名をそのまま貼っただけの欄は「未回答」扱い
-const isMeeting = i => !isReport(i) && !['完了','エラー'].includes(i.ステータス) && (/^\s*【BM】/.test(i.件名 || '') || BM_AIS.some(a => ansOf(i, a.name)));
+const isMeeting = i => !isReport(i) && !['完了','エラー','実行中'].includes(i.ステータス) && (/^\s*【BM】/.test(i.件名 || '') || BM_AIS.some(a => ansOf(i, a.name)));
 const meetingOf = i => { const ans = BM_AIS.map(a => Object.assign({ ok: !!ansOf(i, a.name) }, a)), n = ans.filter(a => a.ok).length;
   return { i, ans, n, chair: i.主担当AI && i.主担当AI !== 'なし' ? i.主担当AI : '', summed: !!String(i.検証結果 || '').trim() || i.ステータス === '承認待ち' }; };
 const caseNo = i => i.案件ID ? String(i.案件ID).replace(/\D/g, '') : '';
@@ -2078,6 +2091,9 @@ function buildOps(all){
   const open = items.filter(i => i.ステータス !== '完了');
   const weekDone = items.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7);
   const meetings = items.filter(isMeeting).map(meetingOf);
+  // Lv13：実行中の案件（担当・期限・報告の有無）
+  const running = items.filter(i => i.ステータス === '実行中').map(i => ({ i, who:i.Bot || i.実行担当Bot || '担当未記入',
+    reported: !!String(i.実行結果 || '').trim() || !!String(i.実行証拠URL || '').trim(), late: !!(i.期限 && i.期限.slice(0, 10) < ymd(0).replace(/\//g, '-')), h:hoursAgo(i.更新) }));
   const pipe = PIPE.map(st => ({ st, n:items.filter(i => i.ステータス === st && !(st === '承認待ち' && i.承認済み)).length, cls: st === '承認待ち' ? 'warn' : st === '実行中' ? 'run' : '' }));
   pipe.push({ st:'完了（7日）', n:weekDone.length, cls:'done' });
   pipe.push({ st:'差し戻し・保留・エラー', n:items.filter(i => ['差し戻し','保留','エラー'].includes(i.ステータス)).length, cls:'other' });
@@ -2118,12 +2134,14 @@ function buildOps(all){
   }
   const waits = ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件');
   if(waits.length) say.push('AIの回答待ちは、' + waits.join('、') + 'です。');
+  if(running.length){ const late = running.filter(r => r.late && !r.reported).length, rep_ = running.filter(r => r.reported).length;
+    say.push('実行中の案件が' + running.length + '件' + (late ? '、うち' + late + '件は期限切れで報告がありません' : '') + (rep_ ? '、' + rep_ + '件は実行結果の報告が来ています。完了にするか確かめてください' : '') + '。'); }
   if(meetings.length){ const done = meetings.filter(m => m.summed).length;
     say.push('会議中の案件が' + meetings.length + '件' + (done ? '、うち' + done + '件は結論案が出ています。「会議の結果は？」で読み上げます' : 'です') + '。'); }
   if(overdue.length) say.push('期限切れの案件が' + overdue.length + '件あります。');
   if(dueToday.length) say.push('今日が期限の案件が' + dueToday.length + '件あります。');
   if(unassigned.length) say.push('担当者が未記入の案件が' + unassigned.length + '件あります。');
-  return { meetings, pipe, ais, bots, unassigned, approvals, approvedStale, todayReports, reports, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
+  return { meetings, running, pipe, ais, bots, unassigned, approvals, approvedStale, todayReports, reports, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
 }
 
 let OPS = null, opsBusy = null;
@@ -2192,7 +2210,17 @@ function findCase(items, text){
   return m;
 }
 const DECIDE = {
-  承認:     i => ({ record: Object.assign({ 承認済み:true }, i.ステータス === '承認待ち' ? { ステータス:'実行中' } : {}),
+  承認:     (i, why, a) => (a && isMeeting(i) && a.executor) ? (() => {
+    // Lv13：会議の案件の承認＝実行指示。担当のGrok Botと期限を書き、議長の結論案（次の一手）を指示内容に添えて「実行中」へ
+    const record = { 承認済み:true, ステータス:'実行中', 実行担当Bot:'Grok Bot', Bot担当者名:a.executor };
+    if(a.due) record.実行期限 = a.due;
+    const plan = String(i.検証結果 || '').replace(/\s+/g, ' ').trim().slice(0, 700);
+    return { record, go:true,
+      append:{ 指示内容:'\n\n【実行指示｜' + nowText() + '】担当：' + a.executor + (a.due ? '／期限：' + a.due : '') + (why ? '／社長より：' + why : '') +
+               '\n→ 議長の結論案の「次の一手」を実行し、終わったら「実行結果」に何をしたか、「実行証拠URL」に写真・資料のリンクを書いてください。' +
+               (plan ? '\n【結論案（要約）】' + plan : '') },
+      change:'承認済み ✓、ステータス → 実行中、実行担当 → ' + a.executor + (a.due ? '（期限 ' + a.due + '）' : '') + '。結論案を実行指示として指示内容に追記' };
+  })() : ({ record: Object.assign({ 承認済み:true }, i.ステータス === '承認待ち' ? { ステータス:'実行中' } : {}),
                     change: '承認済み ✓' + (i.ステータス === '承認待ち' ? '、ステータス → 実行中' : '（ステータスは「' + i.ステータス + '」のまま）') }),
   差し戻し: (i, why) => {
     if(!isMeeting(i)) return { record:{ 承認済み:false, ステータス:'差し戻し' }, change:'ステータス → 差し戻し' };
@@ -2335,6 +2363,13 @@ function renderDash(){
           '<span class="who">' + m.ans.map(a => '<span class="bm-a' + (a.ok ? ' ok' : '') + '" title="' + a.name + '（' + a.role + '）：' + (a.ok ? '回答あり' : '回答待ち') + '"><b>' + (a.ok ? '●' : '○') + '</b>' + a.mark + '</span>').join('') + '</span>' +
           '<span class="ch mono">' + (m.chair ? '議長 ' + esc(m.chair) : '議長 未定') + '</span>' +
           '<span class="pill ' + (m.summed ? '承認待ち' : esc(m.i.ステータス)) + '">' + (m.summed ? '結論案あり' : esc(m.i.ステータス || '—')) + '</span></a>').join('') + '</div></div>';
+    }
+    if(x.running.length){
+      body += '<div class="d-card"><h3>🚜 実行中の案件<span class="d-note">承認された案件と、Grok Botの報告</span><span class="d-aside mono">' + x.running.length + '件</span></h3><div class="d-bm">' +
+        x.running.slice(0, 8).map(r => '<a class="d-bmr d-run" href="' + esc(r.i.url || '#') + '" target="_blank" rel="noopener" title="' + esc(r.i.件名) + '">' +
+          '<span class="no mono">' + (caseNo(r.i) ? 'CASE-' + esc(caseNo(r.i)) : '') + '</span><span class="t">' + esc(String(r.i.件名).replace(/^\s*【BM】/, '')) + '</span>' +
+          '<span class="ch">' + esc(r.who) + '</span><span class="ch mono">' + (r.i.期限 ? dueLabel(r.i) : '期限なし') + '</span>' +
+          '<span class="pill ' + (r.reported ? '完了' : r.late ? 'エラー' : '実行中') + '">' + (r.reported ? '報告あり' : r.late ? '報告なし' : '実行中') + '</span></a>').join('') + '</div></div>';
     }
     body += '<div class="d-legend"><h3>Grok Bot 担当者ごとの今</h3><span><span class="dot fresh"></span> 24時間以内に報告</span><span><span class="dot warn"></span> 1〜3日報告なし</span><span><span class="dot stale"></span> 3日以上報告なし</span></div>';
     const cards = x.bots.map(b => {
