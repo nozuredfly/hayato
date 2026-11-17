@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv14</title>
+<title>AIハヤト Lv15</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -253,7 +253,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv14</small></h1>
+  <h1>AI HAYATO<small>Lv15</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -592,6 +592,49 @@ const JOBS = [
   },
 
   /* ---------- Lv11：Re:zenytheの報告（read）：判断が必要なこと・SIGNAL・4系統・司令本部の更新 ---------- */
+  /* ---------- Lv15：自己点検（read）→ Brain meetings の流れ（Lv11.2〜14）に必要なものがそろっているかを確かめる。何も書き込まない ---------- */
+  {
+    id:'self_check', name:'ハヤト点検', icon:'🩺', type:'read',
+    when:'「点検して」「自己診断」「ちゃんと動く？」「会議の仕組みは使える？」など、ハヤト自身の動作確認を頼まれた時',
+    hint:/点検|自己診断|診断して|動作確認|ちゃんと動く|使える状態/,
+    inputs:{},
+    source:'GAS・台帳・Notion ポストボックス（読むだけ。何も書き込みません）',
+    reply:'最初に「○項目中○項目OK」と言い、⚠️と❌の項目だけを、直し方と一緒に1つずつ短く。全部OKなら「会議の流れは全部使えます。CASE-64で試してください」と言う',
+    run: async () => {
+      const R = [], add = (ok, name, note, fix) => R.push({ 結果: ok === true ? '✅' : ok === null ? '⚠️' : '❌', 項目:name, 内容:note || '', 直し方: ok === true ? '' : (fix || '') });
+      add(!!S.apiKey && /^AIza/.test(S.apiKey), 'Gemini APIキー', S.apiKey ? (S.apiKey.length + '文字') : '未設定', '設定でAI Studioのキー（AIzaで始まる39文字）を貼り直す');
+      if(!gasReady()){ add(false, 'GAS接続', 'URLか合言葉が未設定', '設定でGASのURLと合言葉を入れる'); return { ok:true, data:{ 点検結果:R } }; }
+      let sheets = [];
+      try{ sheets = (await getSchema(true)) || []; add(true, 'GAS接続', 'シート ' + sheets.length + '枚'); }
+      catch(e){ add(false, 'GAS接続', e.message, '設定の「接続テスト」を押して、出たエラーを確認'); return { ok:true, data:{ 点検結果:R } }; }
+      add(gasInfo.notion, 'Notion連携', gasInfo.notion ? 'OK' : 'GASにNotionのトークンがない', 'GASの NOTION_TOKEN にインテグレーションのシークレットを入れる');
+      const names = sheets.map(x => x.name || x);
+      add(names.includes('会議録') ? true : null, '台帳「会議録」シート（Lv14）', names.includes('会議録') ? 'あり' : 'なし',
+          '台帳に「会議録」シートを作り、1行目に 会議ID/日付/テーマ/結論/採否/次のアクション/結果/実行担当/会議録URL/NotionURL/ひとこと');
+      if(!gasInfo.notion) return { ok:true, data:{ 点検結果:R } };
+      const o = await loadOps(true);
+      if(!o.items){ add(false, 'ポストボックスを読む', o.error || '読めない', 'GASのデプロイを新バージョンにし直す'); return { ok:true, data:{ 点検結果:R } }; }
+      const cases = o.items.filter(i => !isReport(i)), has = k => cases.some(i => i[k] != null && String(i[k]).trim() !== '');
+      add(true, 'ポストボックスを読む', '全' + o.items.length + '行（案件' + cases.length + '件）');
+      add(has('案件ID') ? true : null, '案件ID（CASE-番号で呼ぶ・会議ID）', has('案件ID') ? '届いている' : '届いていない',
+          '番号では呼べないので件名で呼ぶ。直すならGASの postbox に「案件ID」を足す（Claudeに「GASに案件IDを足して」と頼む）');
+      add(cases.some(i => i.回答 && Object.keys(i.回答).length) ? true : null, '各AIの回答欄', cases.some(i => i.回答 && Object.keys(i.回答).length) ? '届いている' : '届いていない', 'GASの postbox がChatGPT回答・Claude回答・Grok回答を返しているか確認');
+      const ms = o.ops.meetings;
+      add(ms.length ? true : null, '会議中の案件（Lv12ボード）', ms.length + '件：' + ms.map(m => (caseNo(m.i) ? 'CASE-' + caseNo(m.i) : '') + ' ' + m.n + '/3').join('、'), '「○○を会議にかけて」で起票すると出ます');
+      const sum = ms.find(m => m.summed);
+      if(sum){
+        let got = !!String(sum.i.検証結果 || '').trim(), how = '一覧に入っている';
+        if(!got){ try{ const r = await gas('notion_read', { id:sum.i.id }); const pr = r.プロパティ || r.properties || r; got = !!(pr && String(pr.検証結果 || '').trim()); how = got ? 'ページから読める' : 'ページからも読めない'; }catch(e){ how = '読めない（' + e.message + '）'; } }
+        add(got ? true : false, '議長まとめ（検証結果）の読み上げ', how, 'GASの postbox か notion_read に「検証結果」を足す（Claudeに頼めばGASの直し方を出します）');
+      } else add(null, '議長まとめ（検証結果）の読み上げ', 'まとめ済みの会議がないので未確認', '');
+      add(o.ops.bots.length ? true : null, 'Grok Botの担当者（Lv13の実行担当）', o.ops.bots.length + '名：' + o.ops.bots.slice(0, 6).map(b => b.name).join('、'), '設定の「Grok Bot 名簿」に担当者を書く');
+      add(has('期限') ? true : null, '実行期限（Lv13の期限切れ表示）', has('期限') ? '届いている' : 'どの案件にも入っていない（未設定なら正常）', '');
+      add(null, '書き込み（承認・差し戻し・完了）', '点検では書き込まないので未確認', '最初の1回はNotionで結果を目で確かめる。うまくいかなければ「入らなかった項目」の画面をClaudeに見せる');
+      const okN = R.filter(r => r.結果 === '✅').length;
+      return { ok:true, where:'ハヤト自己点検（書き込みなし）', data:{ まとめ: R.length + '項目中' + okN + '項目OK', 点検結果:R } };
+    }
+  },
+
   /* ---------- Lv14：完了にして会議録を残す（commit）→ Driveに会議録、台帳「会議録」に1行、Notionを完了へ ---------- */
   {
     id:'bm_close', name:'完了と会議録', icon:'📚', type:'commit', verb:'完了にして会議録を作成',
