@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv15</title>
+<title>AIハヤト Lv16</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -182,6 +182,22 @@ input.secret.show{-webkit-text-security:none;text-security:none}
 .d-tile.other{border-style:dashed;border-color:var(--dim-line)}
 .d-tile.zero .v{color:var(--faint)}
 .d-ai{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px}
+/* Lv16：ナビ */
+.nav-steps{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:10px}
+.nav-s{border:1px dashed var(--line);border-radius:10px;padding:8px;opacity:.55}
+.nav-s.on{opacity:1;border-style:solid}
+.nav-s.me{border-color:var(--cyan)}
+.nav-s.here{box-shadow:0 0 0 2px var(--cyan) inset}
+.nav-s .h{font-size:11px;color:var(--sub)}
+.nav-s .n{font-size:22px;font-weight:700;margin:2px 0}
+.nav-s .w{font-size:11px;color:var(--sub)}
+.nav-todo{display:flex;flex-direction:column;gap:6px}
+.nav-t{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px}
+.nav-t.first{border-color:var(--cyan)}
+.nav-t .st{color:var(--cyan)}
+.nav-say{white-space:nowrap}
+.nav-help{font-size:12px;color:var(--sub);margin-top:8px}
+@media (max-width:700px){.nav-steps{grid-template-columns:repeat(3,1fr)}.nav-t{grid-template-columns:24px 1fr}.nav-say{grid-column:1/-1}}
 /* Lv12：会議中の案件 */
 .d-bm{display:flex;flex-direction:column;gap:6px}
 .d-bmr{display:grid;grid-template-columns:70px 1fr auto 92px 92px;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;color:inherit;text-decoration:none}
@@ -253,7 +269,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv15</small></h1>
+  <h1>AI HAYATO<small>Lv16</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -452,7 +468,7 @@ const JOBS = [
     inputs:{},
     source:'天気（Open-Meteo）、Googleカレンダー（今日）、台帳「予定」（今日）「作業記録」（昨日）「故障記録」（未対応）、Notion（ポストボックス・経験値バンク）',
     reply:'次の順で、話し言葉5〜6文で報告：①あいさつと今日の天気、農作業（散布・稲刈り・ドローン）への一言 ②今日の予定（「今日のカレンダー」と「今日の予定」を合わせて時刻順に。無ければ「入っていません」）' +
-          '③昨日の作業を短く ④未対応の故障があれば「件数」と新しいものから1〜2件（件数が0なら触れない） ⑤「AIとGrokBotの作業状況」と「承認待ちの案件」があれば2〜3文で（承認待ちは件名を短く、期限切れ・報告が止まっている担当者を優先） ⑥「経験値バンク」に回答待ちの質問があれば件数と「今夜の質問は？で読み上げます」と一言 ⑦前向きな一言。「注意」に書かれた取れなかった情報は、取れなかったと正直に言う',
+          '③昨日の作業を短く ④未対応の故障があれば「件数」と新しいものから1〜2件（件数が0なら触れない） ⑤「AIとGrokBotの作業状況」と「承認待ちの案件」があれば2〜3文で（承認待ちは件名を短く、期限切れ・報告が止まっている担当者を優先） ⑥「経験値バンク」に回答待ちの質問があれば件数と「今夜の質問は？で読み上げます」と一言 ⑦「今日のあなたの出番」を1つだけ、「〜と言ってください」と言う言葉付きで ⑧前向きな一言。「注意」に書かれた取れなかった情報は、取れなかったと正直に言う',
     run: async () => {
       const data = { 今日: ymd(0), 昨日: ymd(-1) }, notes = [];
       try{ data.天気 = weatherText(await getWeather()); }catch(e){ notes.push('天気が取れませんでした'); }
@@ -475,6 +491,7 @@ const JOBS = [
           if(o.ops){
             data.AIとGrokBotの作業状況 = o.ops.summary;
             data.承認待ちの案件 = o.ops.approvals.slice(0, 4).map(i => i.件名 + (i.期限 ? '（' + dueLabel(i).replace(/<[^>]+>/g, '') + '）' : ''));
+            const nv = navOf(o.ops); data.今日のあなたの出番 = { やること:nv.todo[0].text, 言う言葉:nv.todo[0].say, ほかに:nv.todo.length - 1 };
           }
           if(o.hq && o.hq.open) data.経験値バンク = { 回答待ちの質問:o.hq.open.length };
         }catch(e){}
@@ -592,6 +609,25 @@ const JOBS = [
   },
 
   /* ---------- Lv11：Re:zenytheの報告（read）：判断が必要なこと・SIGNAL・4系統・司令本部の更新 ---------- */
+  /* ---------- Lv16：ナビ（read）→ いまどこ？次に何をする？使い方は？ ---------- */
+  {
+    id:'navi', name:'ナビ', icon:'🧭', type:'read',
+    when:'「次は何をすればいい？」「いまどこ？」「何から始める？」「使い方は？」「何ができる？」「どう言えばいい？」など、使い方や次の行動・現在地を聞かれた時',
+    hint:/次は何|次に何|何をすれば|いまどこ|今どこ|現在地|使い方|何ができ|どう言えば|何から|ナビ|迷って/,
+    inputs:{ topic:{ label:'知りたいこと', desc:'次の行動／使い方／特定の段階（④など）。言われなければ「次の行動」' } },
+    source:'ポストボックス（会議中・実行中の案件）とハヤトの仕事の一覧',
+    reply:'次の行動を聞かれたら：①いまの位置を一言（例：会議が1件、あなたの判断待ちです）②やることを1つ ③「〜と言ってください」と言う言葉そのもの ④ほかにも出番があれば件数だけ。使い方を聞かれたら：流れの6段階を一言ずつと、各段階で言う言葉を例として。最後に「ボードのナビのボタンを押せば、その言葉が入力欄に入ります」と添える。合計5〜7文、話し言葉',
+    run: async (a) => {
+      const flow = NAV_STEPS.map(t => ({ 段階:t.no + ' ' + t.name, 誰の番:t.who, こつ:t.tip }));
+      const words = { '①起票':'○○を会議にかけて', '④判断':'○○の会議の結果は？ → 承認、実行は（担当者）、（日付）まで ／ 差し戻し、理由は○○', '⑥完了':'○○を完了にして', 'いつでも':'点検して／次は何をすればいい？／実行中の案件は？' };
+      if(!gasReady() || !gasInfo.notion) return { ok:true, data:{ 流れ:flow, 言う言葉:words, 注意:'GASかNotionがつながっていないので、案件の現在地はわかりません' } };
+      const o = await loadOps(true); if(!o.ops) return { ok:true, data:{ 流れ:flow, 言う言葉:words, 注意:o.error || '' } };
+      const nv = navOf(o.ops);
+      return { ok:true, where:'ナビ', data:{ いまの位置:NAV_STEPS.map(t => t.no + t.name + ' ' + nv.st[t.k].length + '件').join('、'),
+        あなたの出番:nv.todo.slice(0, 3).map(t => ({ 段階:t.step, やること:t.text, 言う言葉:t.say })), 流れ:flow, 言う言葉の例:words } };
+    }
+  },
+
   /* ---------- Lv15：自己点検（read）→ Brain meetings の流れ（Lv11.2〜14）に必要なものがそろっているかを確かめる。何も書き込まない ---------- */
   {
     id:'self_check', name:'ハヤト点検', icon:'🩺', type:'read',
@@ -2187,6 +2223,29 @@ function bmFind(text){   // 案件IDか件名で1件に絞る（実行中を優�
   if(m.length > 1){ const run = m.filter(i => i.ステータス === '実行中'); if(run.length) m = run; }
   return m.length === 1 ? { hit:m[0] } : m.length ? { list:m } : {};
 }
+/* ---------- Lv16：ナビ（いまどこ？次に何をする？）。ボード・朝の報告・「次は？」で同じ答えを使う ---------- */
+const NAV_STEPS = [
+  { k:'s1', no:'①', name:'起票',        who:'あなた',  tip:'困りごとを「○○を会議にかけて」と話す' },
+  { k:'s2', no:'②', name:'AIが議論',    who:'AI',      tip:'見回り（Claude 5:44・11:44・16:44）を待つだけ' },
+  { k:'s3', no:'③', name:'まとめ待ち',  who:'AI',      tip:'3人そろうと議長がまとめる' },
+  { k:'s4', no:'④', name:'あなたの判断', who:'あなた',  tip:'結論を聞いて「承認」か「差し戻し」' },
+  { k:'s5', no:'⑤', name:'実行中',      who:'Grok Bot', tip:'担当者の報告を待つ' },
+  { k:'s6', no:'⑥', name:'完了と会議録', who:'あなた',  tip:'報告を確かめて「完了にして」' } ];
+const shortName = i => String(i.件名 || '').replace(/^\s*【BM】/, '').replace(/[（(].*$/, '').slice(0, 16) || '案件';
+function navOf(x){
+  const st = { s1:[], s2:[], s3:[], s4:[], s5:[], s6:[] };
+  (x.meetings || []).forEach(m => { if(m.summed) st.s4.push(m.i); else if(m.n === 3) st.s3.push(m.i); else if(m.n > 0) st.s2.push(m.i); else st.s1.push(m.i); });
+  (x.running || []).forEach(r => (r.reported ? st.s6 : st.s5).push(r.i));
+  const todo = [];   // あなたの出番（大事な順）
+  st.s4.forEach(i => todo.push({ step:'④', text:shortName(i) + 'の結論案が出ています。聞いて判断を', say:shortName(i) + 'の会議の結果は？' }));
+  st.s6.forEach(i => todo.push({ step:'⑥', text:shortName(i) + 'の実行報告が来ています。確かめて完了に', say:shortName(i) + 'を完了にして' }));
+  (x.running || []).filter(r => r.late && !r.reported).forEach(r => todo.push({ step:'⑤', text:shortName(r.i) + 'は期限切れで報告なし。' + r.who + 'に催促を', say:r.who + 'に' + shortName(r.i) + 'の報告を催促して' }));
+  const waiting = st.s1.length + st.s2.length + st.s3.length + st.s5.length;
+  if(!todo.length) todo.push(waiting ? { step:'②', text:'いまはAIとGrok Botの番です。待つだけでOK（' + waiting + '件が進行中）', say:'会議中の案件は？' }
+                                     : { step:'①', text:'会議中の案件はありません。困りごと・迷っていることを会議にかけてみましょう', say:'○○を会議にかけて' });
+  const here = todo[0].step;
+  return { st, todo, here, mine: todo.filter(t => ['④','⑥','⑤'].includes(t.step)).length };
+}
 function buildOps(all){
   all = all.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
   const items = all.filter(i => !isReport(i));                     // 案件だけ
@@ -2453,6 +2512,13 @@ function renderDash(){
     body = '<div class="d-card d-setup"><h3>ポストボックスを読めませんでした</h3><p>' + esc(String(o.error).replace(/^Error:\s*/, '')) + esc(hint) + '</p></div>';
   }else{
     const x = o.ops;
+    const nv = navOf(x);
+    body += '<div class="d-card d-nav"><h3>🧭 ナビ：いまどこ？<span class="d-note">Brain meetings の流れと、あなたの出番</span><span class="d-aside mono' + (nv.mine ? ' hl' : '') + '">あなたの出番 ' + nv.mine + '件</span></h3>' +
+      '<div class="nav-steps">' + NAV_STEPS.map(t => { const n = nv.st[t.k].length, me = t.who === 'あなた';
+        return '<div class="nav-s' + (n ? ' on' : '') + (n && me ? ' me' : '') + (nv.here === t.no ? ' here' : '') + '" title="' + esc(t.tip) + '"><div class="h mono">' + t.no + ' ' + esc(t.name) + '</div><div class="n mono">' + n + '</div><div class="w">' + esc(t.who) + '</div></div>'; }).join('') + '</div>' +
+      '<div class="nav-todo">' + nv.todo.slice(0, 3).map((t, k) => '<div class="nav-t' + (k === 0 ? ' first' : '') + '"><span class="st mono">' + t.step + '</span><span class="tx">' + esc(t.text) + '</span>' +
+        '<button class="d-btn nav-say" type="button" data-say="' + esc(t.say) + '">「' + esc(t.say) + '」</button></div>').join('') + '</div>' +
+      '<p class="nav-help">ボタンを押すと、その言葉が入力欄に入ります。迷ったら「次は何をすればいい？」「使い方は？」と話しかけてください。</p></div>';
     body += '<div class="d-card d-say"><span class="d-lbl mono">HAYATO SAYS</span><p>' + esc(x.summary) + '</p><button class="d-btn" id="dSpeak" type="button">読み上げ</button></div>';
     body += '<div class="d-card"><h3>案件の流れ<span class="d-note">いま何件がどこにあるか</span><span class="d-aside mono">進行中 ' + x.openCount + ' ／ 完了（7日） ' + x.weekDone + '</span></h3><div class="d-pipe">' +
       x.pipe.map(p => '<div class="d-tile ' + p.cls + (p.n ? '' : ' zero') + '"><div class="k">' + esc(p.st) + '</div><div class="v mono">' + p.n + '</div></div>').join('') + '</div></div>';
@@ -2542,6 +2608,10 @@ function bindDash(){
   document.querySelectorAll('.d-tabs button').forEach(b => b.onclick = () => { S.dashTab = b.dataset.tab; save(); renderDash(); $('dash').scrollTop = 0; });
   const sp = $('dSpeak'); if(sp) sp.onclick = () => { if(OPS && OPS.ops) speak(OPS.ops.summary, 'ja', true); };
   const sr = $('dSpeakRz'); if(sr) sr.onclick = () => { if(OPS && OPS.ops) speak(rzSummary(OPS), 'ja', true); };
+  document.querySelectorAll('.nav-say').forEach(b => b.onclick = () => {   // Lv16：ナビの言葉を入力欄へ（○○は自分で書き換える）
+    const t = $('text'); t.value = b.dataset.say; t.focus();
+    const k = t.value.indexOf('○○'); if(k >= 0) t.setSelectionRange(k, k + 2); else t.setSelectionRange(t.value.length, t.value.length);
+  });
   document.querySelectorAll('.d-ans').forEach(b => b.onclick = () => {   // 「答える」→ 入力欄に下書き。話しかけてもOK
     const t = $('text'); t.value = '質問' + b.dataset.q + 'の答え：'; t.focus(); t.setSelectionRange(t.value.length, t.value.length);
   });
