@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv12</title>
+<title>AIハヤト Lv12.1</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -251,7 +251,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv12</small></h1>
+  <h1>AI HAYATO<small>Lv12.1</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -563,9 +563,14 @@ const JOBS = [
       if(m.length !== 1) return { ok:false, error: m.length ? '候補が' + m.length + '件あります（' + m.slice(0, 4).map(i => i.件名).join('／') + '）。件名をもう少し詳しく言ってください' : '「' + a.case_title + '」に合う案件が見つかりません' };
       const i = m[0], d = DECIDE[a.decision];
       if(!d) return { ok:false, error:'判断は「承認・差し戻し・保留」のどれかです' };
-      const x = d(i);
-      const note = '【' + BOSS + '／' + nowText() + '・AIハヤト】' + a.decision + (a.comment ? '：' + a.comment : '');
-      const r = await gas('notion_update', { id:i.id, record:x.record, append:{ 最終判断:note } });
+      if(a.decision === '差し戻し' && isMeeting(i) && !String(a.comment || '').trim())
+        return { ok:false, error:'会議の差し戻しは、理由を一言ください（例：差し戻し、理由は店の人の手間が多すぎる）。理由を読んで各AIが答え直します' };
+      if(a.decision === '差し戻し' && isMeeting(i) && !String(i.検証結果 || '').trim()){   // 議長まとめも記録に残すため、一覧に無ければページから読む
+        try{ const r = await gas('notion_read', { id:i.id }); const pr = r.プロパティ || r.properties || r; if(pr && pr.検証結果) i.検証結果 = pr.検証結果; }catch(e){}
+      }
+      const x = d(i, a.comment);
+      const note = '【' + BOSS + '／' + nowText() + '・AIハヤト】' + (x.rethink ? '差し戻し（再審議）' : a.decision) + (a.comment ? '：' + a.comment : '');
+      const r = await gas('notion_update', { id:i.id, record:x.record, append:Object.assign({ 最終判断:note }, x.append || {}) });
       if(isWide()) setTimeout(() => loadOps(true), 500); else OPS = null;
       return { ok:true, where:'Notion ポストボックス「' + i.件名 + '」', url:r.url || i.url, title:i.件名, change:x.change };
     },
@@ -2189,7 +2194,18 @@ function findCase(items, text){
 const DECIDE = {
   承認:     i => ({ record: Object.assign({ 承認済み:true }, i.ステータス === '承認待ち' ? { ステータス:'実行中' } : {}),
                     change: '承認済み ✓' + (i.ステータス === '承認待ち' ? '、ステータス → 実行中' : '（ステータスは「' + i.ステータス + '」のまま）') }),
-  差し戻し: () => ({ record:{ 承認済み:false, ステータス:'差し戻し' }, change:'ステータス → 差し戻し' }),
+  差し戻し: (i, why) => {
+    if(!isMeeting(i)) return { record:{ 承認済み:false, ステータス:'差し戻し' }, change:'ステータス → 差し戻し' };
+    // Lv12.1：会議の案件は「再審議」。前回の意見を手順・改善メモに保管 → 回答欄と議長まとめを空に → 担当振分へ。理由は指示内容に追記して、各AIの次の見回りで答え直してもらう
+    const d = nowText(), m = meetingOf(i), cut = t => String(t || '').replace(/\s+/g, ' ').trim().slice(0, 380);
+    const log = '【前回の会議記録｜' + d + ' 差し戻し】' + m.ans.map(a => '\n◆' + a.name + '：' + (a.ok ? cut(ansOf(i, a.name)) : '（回答なし）')).join('') +
+                (String(i.検証結果 || '').trim() ? '\n◆議長まとめ：' + cut(i.検証結果) : '');
+    const record = { 承認済み:false, 承認要否:false, ステータス:'担当振分', ChatGPT回答:'', Claude回答:'', Grok回答:'', 検証結果:'' };
+    if(!/^\s*【BM】/.test(i.件名 || '')) record.件名 = '【BM】' + i.件名;   // 回答が空になっても「会議中」に残るように
+    return { record, rethink:true,
+             append:{ 手順・改善メモ:log, 指示内容:'\n\n【差し戻し・再審議｜' + d + '】理由：' + (why || '（理由未記入）') + '\n→ 各AIは「手順・改善メモ」の前回の会議記録と、この理由を読んでから、自分の欄に答え直してください。' },
+             change:'再審議へ：前回の3人の意見と議長まとめを「手順・改善メモ」に保管し、回答欄を空にして「担当振分」へ戻します（理由は指示内容に追記。次の見回りで各AIが答え直します）' };
+  },
   保留:     () => ({ record:{ ステータス:'保留' }, change:'ステータス → 保留' })
 };
 async function loadOps(force){
