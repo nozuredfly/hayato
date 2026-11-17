@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv11.2</title>
+<title>AIハヤト Lv12</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -182,6 +182,18 @@ input.secret.show{-webkit-text-security:none;text-security:none}
 .d-tile.other{border-style:dashed;border-color:var(--dim-line)}
 .d-tile.zero .v{color:var(--faint)}
 .d-ai{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:8px}
+/* Lv12：会議中の案件 */
+.d-bm{display:flex;flex-direction:column;gap:6px}
+.d-bmr{display:grid;grid-template-columns:70px 1fr auto 92px 92px;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;color:inherit;text-decoration:none}
+.d-bmr:hover{border-color:var(--cyan)}
+.d-bmr .no{font-size:11px;color:var(--sub)}
+.d-bmr .t{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d-bmr .who{display:flex;gap:6px}
+.d-bmr .bm-a{font-size:11px;color:var(--sub);display:inline-flex;gap:2px;align-items:center}
+.d-bmr .bm-a.ok{color:var(--cyan)}
+.d-bmr .ch{font-size:11px;color:var(--sub);text-align:right}
+.d-bmr .pill{justify-self:end}
+@media (max-width:700px){.d-bmr{grid-template-columns:1fr auto}.d-bmr .no,.d-bmr .ch{display:none}}
 .d-aic{border:1px solid var(--line2);border-radius:10px;background:var(--card2);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
 .d-aic .nm{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700}
 .d-aic .mk{width:26px;height:26px;border-radius:50%;border:1px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--cyan)}
@@ -239,7 +251,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv11.2</small></h1>
+  <h1>AI HAYATO<small>Lv12</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -562,10 +574,55 @@ const JOBS = [
   },
 
   /* ---------- Lv11：Re:zenytheの報告（read）：判断が必要なこと・SIGNAL・4系統・司令本部の更新 ---------- */
+  /* ---------- Lv12：会議の結果（read）→ 3人のAIの意見と議長の結論案を読み上げ ---------- */
+  {
+    id:'bm_result', name:'会議の結果', icon:'🧠', type:'read',
+    when:'ポストボックスの案件の会議結果・AI幹部の意見・結論案を聞かれた時（例：会議の結果は？／CASE-64の会議結果を読んで／蔵王茶屋の米の件、みんなの意見は？／どの会議が進んでる？）。案件を言われなければ、結論案が出ているものを先に',
+    hint:/会議の結果|会議結果|結論案|みんなの意見|AI(幹部)?の意見|会議中|会議(は|が)どう|CASE-?\s*\d+/i,
+    inputs:{ case:{ label:'案件', desc:'件名の言葉か案件ID（例：CASE-64、蔵王茶屋の米）。言われなければ空' } },
+    source:'Notion「📮 ポストボックス（共通台帳）」の各AIの回答欄と検証結果',
+    ready: () => gasReady() && gasInfo.notion,
+    context: async (ctx) => {
+      if(!/会議|結論|意見|CASE/i.test(ctx.text || '')) return '';
+      const o = await loadOps(); if(!o.ops || !o.ops.meetings.length) return '';
+      return '【会議中】' + o.ops.meetings.map(m => (caseNo(m.i) ? 'CASE-' + caseNo(m.i) + ' ' : '') + m.i.件名 + '（回答' + m.n + '/3' + (m.summed ? '・結論案あり' : '') + '）').join(' / ');
+    },
+    reply:'案件を1つに絞れたら：①件名と、何人のAIが答えたか ②ChatGPT（進める案）・Claude（リスク）・Grok（現場）の要点を各1〜2文 ③議長の結論案（あれば）を2〜3文 ④「承認・差し戻し・保留のどれにしますか」と聞く。話し言葉で合計7〜9文。まだ答えていないAIは「回答待ち」と言う。案件が決まらない時は、会議中の案件を件名と回答数で並べて、どれを読むか聞く',
+    run: async (a) => {
+      const o = await loadOps(true); if(!o.ops) return { ok:false, error:o.error || 'ポストボックスを読めませんでした' };
+      const ms = o.ops.meetings;
+      let hit = null;
+      if(a.case){
+        const no = (String(a.case).match(/\d+/) || [])[0];
+        const byNo = no ? o.items.filter(i => caseNo(i) === no) : [];
+        const m = byNo.length === 1 ? byNo : findCase(o.items, a.case);
+        if(m.length === 1) hit = m[0];
+        else if(m.length > 1) return { ok:true, data:{ 候補が複数:m.slice(0, 6).map(i => (caseNo(i) ? 'CASE-' + caseNo(i) + ' ' : '') + i.件名) } };
+        else return { ok:true, data:{ 見つかりません:a.case, 会議中の案件:ms.map(x => x.i.件名) } };
+      } else {
+        const ready = ms.filter(x => x.summed);
+        if(ready.length === 1 || (ms.length === 1)) hit = (ready[0] || ms[0]).i;
+        else return { ok:true, data:{ 会議中の案件:ms.map(x => ({ 案件:(caseNo(x.i) ? 'CASE-' + caseNo(x.i) + ' ' : '') + x.i.件名, 回答:x.n + '/3', 結論案:x.summed ? 'あり' : 'まだ' })) } };
+      }
+      const m = meetingOf(hit);
+      let sumText = String(hit.検証結果 || '').trim();
+      const data = { 案件:(caseNo(hit) ? 'CASE-' + caseNo(hit) + ' ' : '') + hit.件名, ステータス:hit.ステータス, 議長:m.chair || '未定', 回答数:m.n + '/3', 意見:{} };
+      m.ans.forEach(x => { data.意見[x.name + '（' + x.role + '）'] = x.ok ? ansOf(hit, x.name).slice(0, 1500) : '回答待ち'; });
+      if(!sumText){   // ポストボックスの一覧に検証結果が無い時は、ページを直接読む
+        try{ const r = await gas('notion_read', { id:hit.id });
+             const pr = r.プロパティ || r.properties || r;
+             sumText = String((pr && pr.検証結果) || '').trim();
+             if(!sumText && r.本文) data.ページ本文 = String(r.本文).slice(0, 1500); }catch(e){}
+      }
+      data.議長の結論案 = sumText ? sumText.slice(0, 1500) : (m.summed ? '承認待ちですが、まとめ欄が読めませんでした' : 'まだありません');
+      return { ok:true, where:'Notion ポストボックス', url:hit.url, data, linksTitle:'🧠 開く', links: hit.url ? [{ label:hit.件名, url:hit.url }] : [] };
+    }
+  },
+
   {
     id:'rezenythe_report', name:'Re:zenytheの報告', icon:'🚀', type:'read',
-    when:'リゼニス（Re:zenythe）の報告・状況、SIGNALの新着、AI会議の結果、各AIの開発状況（例：Claudeの開発状況は？）、出ているビジネス案、自分が判断すべき案件を聞かれた時。特定のページ（会議報告書・回答書など）の中身を聞かれたら page にその題名の言葉を入れる',
-    hint:/リゼニス|ゼニス|zenythe|SIGNAL|シグナル|AI会議|会議の結果|開発状況|ビジネス案|収益化|判断(する|が)必要|判断依頼/i,
+    when:'リゼニス（Re:zenythe）の報告・状況、SIGNALの新着、司令本部のAI会議ページ（ポストボックスの案件の会議結果は「会議の結果」）、各AIの開発状況（例：Claudeの開発状況は？）、出ているビジネス案、自分が判断すべき案件を聞かれた時。特定のページ（会議報告書・回答書など）の中身を聞かれたら page にその題名の言葉を入れる',
+    hint:/リゼニス|ゼニス|zenythe|SIGNAL|シグナル|AI会議|開発状況|ビジネス案|収益化|判断(する|が)必要|判断依頼/i,
     inputs:{ page:{ label:'ページ', desc:'中身を読みたい司令本部のページ題名の言葉（例：回答書、会議、収益化）。全体の報告なら空' } },
     source:'Notion 司令本部・ポストボックス、Gmail（SIGNAL）',
     ready: () => gasReady() && gasInfo.notion,
@@ -2000,6 +2057,13 @@ function dueLabel(i){
   return '期限 ' + esc(shortDate(i.期限));
 }
 const isReport = i => /^\s*【(日報|日次)/.test(i.件名 || '');   // 毎日の報告（案件ではない）
+/* Lv12：Brain meetings（会議中の案件）。【BM】の案件か、AIの回答が1つでも入っている未完了の案件 */
+const BM_AIS = [{ name:'ChatGPT', mark:'GP', role:'アクセル' }, { name:'Claude', mark:'CL', role:'ブレーキ' }, { name:'Grok', mark:'GR', role:'現場目線' }];
+const ansOf = (i, n) => { const v = String((i.回答 || {})[n] || '').trim(); return (v && v !== String(i.件名 || '').trim() && v !== String(i.Bot || '').trim()) ? v : ''; };   // 件名をそのまま貼っただけの欄は「未回答」扱い
+const isMeeting = i => !isReport(i) && !['完了','エラー'].includes(i.ステータス) && (/^\s*【BM】/.test(i.件名 || '') || BM_AIS.some(a => ansOf(i, a.name)));
+const meetingOf = i => { const ans = BM_AIS.map(a => Object.assign({ ok: !!ansOf(i, a.name) }, a)), n = ans.filter(a => a.ok).length;
+  return { i, ans, n, chair: i.主担当AI && i.主担当AI !== 'なし' ? i.主担当AI : '', summed: !!String(i.検証結果 || '').trim() || i.ステータス === '承認待ち' }; };
+const caseNo = i => i.案件ID ? String(i.案件ID).replace(/\D/g, '') : '';
 function buildOps(all){
   all = all.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
   const items = all.filter(i => !isReport(i));                     // 案件だけ
@@ -2008,6 +2072,7 @@ function buildOps(all){
   const todayISO = ymd(0).replace(/\//g, '-');
   const open = items.filter(i => i.ステータス !== '完了');
   const weekDone = items.filter(i => i.ステータス === '完了' && hoursAgo(i.更新) < 24 * 7);
+  const meetings = items.filter(isMeeting).map(meetingOf);
   const pipe = PIPE.map(st => ({ st, n:items.filter(i => i.ステータス === st && !(st === '承認待ち' && i.承認済み)).length, cls: st === '承認待ち' ? 'warn' : st === '実行中' ? 'run' : '' }));
   pipe.push({ st:'完了（7日）', n:weekDone.length, cls:'done' });
   pipe.push({ st:'差し戻し・保留・エラー', n:items.filter(i => ['差し戻し','保留','エラー'].includes(i.ステータス)).length, cls:'other' });
@@ -2048,10 +2113,12 @@ function buildOps(all){
   }
   const waits = ais.filter(a => a.wait).map(a => a.name + ' ' + a.wait + '件');
   if(waits.length) say.push('AIの回答待ちは、' + waits.join('、') + 'です。');
+  if(meetings.length){ const done = meetings.filter(m => m.summed).length;
+    say.push('会議中の案件が' + meetings.length + '件' + (done ? '、うち' + done + '件は結論案が出ています。「会議の結果は？」で読み上げます' : 'です') + '。'); }
   if(overdue.length) say.push('期限切れの案件が' + overdue.length + '件あります。');
   if(dueToday.length) say.push('今日が期限の案件が' + dueToday.length + '件あります。');
   if(unassigned.length) say.push('担当者が未記入の案件が' + unassigned.length + '件あります。');
-  return { pipe, ais, bots, unassigned, approvals, approvedStale, todayReports, reports, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
+  return { meetings, pipe, ais, bots, unassigned, approvals, approvedStale, todayReports, reports, due, latest:items.slice(0, 7), openCount:open.length, weekDone:weekDone.length, summary:say.join('') };
 }
 
 let OPS = null, opsBusy = null;
@@ -2245,6 +2312,14 @@ function renderDash(){
       x.ais.map(a => '<div class="d-aic"><div class="nm"><span class="mk mono">' + a.mark + '</span>' + esc(a.name) + '</div><div class="rl">' + esc(a.role) + '</div>' +
         '<div class="ct mono">担当 ' + a.active + '</div>' + (a.wait == null ? '' : '<div class="ct mono ' + (a.wait ? 'hl' : '') + '">回答待ち ' + a.wait + '</div>') +
         '<div class="ls mono">最後 ' + (a.last ? clockText(a.last) : '—') + '</div></div>').join('') + '</div></div>';
+    if(x.meetings.length){
+      body += '<div class="d-card"><h3>🧠 会議中の案件<span class="d-note">Brain meetings：●＝回答あり ○＝回答待ち</span><span class="d-aside mono">' + x.meetings.length + '件</span></h3><div class="d-bm">' +
+        x.meetings.slice(0, 8).map(m => '<a class="d-bmr" href="' + esc(m.i.url || '#') + '" target="_blank" rel="noopener" title="' + esc(m.i.件名) + '">' +
+          '<span class="no mono">' + (caseNo(m.i) ? 'CASE-' + esc(caseNo(m.i)) : '') + '</span><span class="t">' + esc(String(m.i.件名).replace(/^\s*【BM】/, '')) + '</span>' +
+          '<span class="who">' + m.ans.map(a => '<span class="bm-a' + (a.ok ? ' ok' : '') + '" title="' + a.name + '（' + a.role + '）：' + (a.ok ? '回答あり' : '回答待ち') + '"><b>' + (a.ok ? '●' : '○') + '</b>' + a.mark + '</span>').join('') + '</span>' +
+          '<span class="ch mono">' + (m.chair ? '議長 ' + esc(m.chair) : '議長 未定') + '</span>' +
+          '<span class="pill ' + (m.summed ? '承認待ち' : esc(m.i.ステータス)) + '">' + (m.summed ? '結論案あり' : esc(m.i.ステータス || '—')) + '</span></a>').join('') + '</div></div>';
+    }
     body += '<div class="d-legend"><h3>Grok Bot 担当者ごとの今</h3><span><span class="dot fresh"></span> 24時間以内に報告</span><span><span class="dot warn"></span> 1〜3日報告なし</span><span><span class="dot stale"></span> 3日以上報告なし</span></div>';
     const cards = x.bots.map(b => {
       const f = fresh(b.h), c = b.cur, tag = c && c.url ? 'a' : 'div';
