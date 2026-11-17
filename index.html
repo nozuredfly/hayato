@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AIハヤト">
-<title>AIハヤト Lv13</title>
+<title>AIハヤト Lv14</title>
 <link rel="apple-touch-icon" id="appleIcon">
 <style>
 :root{
@@ -253,7 +253,7 @@ a.d-bot:hover{border-color:var(--cyan2)}
 <div id="shell">
 <div id="left">
 <header>
-  <h1>AI HAYATO<small>Lv13</small></h1>
+  <h1>AI HAYATO<small>Lv14</small></h1>
   <div>
     <button class="icon-btn" id="jobsBtn">仕事</button>
     <button class="icon-btn" id="clearBtn">履歴消去</button>
@@ -592,6 +592,58 @@ const JOBS = [
   },
 
   /* ---------- Lv11：Re:zenytheの報告（read）：判断が必要なこと・SIGNAL・4系統・司令本部の更新 ---------- */
+  /* ---------- Lv14：完了にして会議録を残す（commit）→ Driveに会議録、台帳「会議録」に1行、Notionを完了へ ---------- */
+  {
+    id:'bm_close', name:'完了と会議録', icon:'📚', type:'commit', verb:'完了にして会議録を作成',
+    when:'実行中の案件を「完了にして」「締めて」「会議録を作って」と言われた時、または実行結果の報告を確かめて完了にする時（例：CASE-64を完了に／蔵王茶屋の米の件、完了報告OK）。件名は【実行中】から選ぶ',
+    hint:/完了に(して|する)|完了報告|会議録|締めて|クローズ|終わりにして/,
+    inputs:{
+      case:    { label:'案件', desc:'件名の言葉か案件ID（【実行中】からそのまま）', required:true },
+      comment: { label:'ひとこと', desc:'社長の感想・評価・次への教訓（言われなければ空）' }
+    },
+    source:'Notion ポストボックス → ドライブ「AIハヤト」フォルダに会議録、台帳「会議録」シートに1行',
+    ready: () => gasReady() && gasInfo.notion,
+    context: async (ctx) => {
+      if(!/完了|会議録|締め|クローズ|終わり/.test(ctx.text || '')) return '';
+      const o = await loadOps(); if(!o.ops || !o.ops.running.length) return '';
+      return '【実行中】' + o.ops.running.map(r => (caseNo(r.i) ? 'CASE-' + caseNo(r.i) + ' ' : '') + r.i.件名 + '（' + r.who + (r.reported ? '・報告あり' : '・報告まだ') + '）').join(' / ');
+    },
+    preview: a => {
+      const r = bmFind(a.case), i = r.hit;
+      return [['案件', i ? i.件名 : a.case + (r.list ? '（候補が' + r.list.length + '件）' : '（見つかりません）')], ['いまの状態', i ? i.ステータス : '—'],
+              ['実行結果', i ? (String(i.実行結果 || '').trim() ? String(i.実行結果).slice(0, 80) : '⚠️ まだ報告がありません（このまま完了にもできます）') : '—'],
+              ['会議録', i ? bmId(i) + '_' + bmTheme(i) : '—'], ['書くところ', 'ドライブ「AIハヤト」フォルダ／台帳「会議録」／Notion：ステータス → 完了'], ['ひとこと', a.comment || '']];
+    },
+    run: async (a) => {
+      await loadOps(true);
+      const f = bmFind(a.case);
+      if(!f.hit) return { ok:false, error: f.list ? '候補が' + f.list.length + '件あります（' + f.list.slice(0, 4).map(i => i.件名).join('／') + '）。件名をもう少し詳しく' : '「' + a.case + '」に合う案件が見つかりません' };
+      const i = Object.assign({}, f.hit);
+      try{ const r = await gas('notion_read', { id:i.id }); const pr = r.プロパティ || r.properties || r || {};   // 一覧に無い欄はページから読む
+           ['検証結果','指示内容','最終判断','実行結果','実行証拠URL','完了条件','手順・改善メモ'].forEach(k => { if(pr[k] && !String(i[k] || '').trim()) i[k] = pr[k]; }); }catch(e){}
+      const id = bmId(i), theme = bmTheme(i), d = nowText(), m = meetingOf(i);
+      const sec = (h, t) => '■' + h + '\n' + (String(t || '').trim() || '（記録なし）') + '\n\n';
+      const content = '会議ID：' + id + '　／　Notion案件：' + (caseNo(i) ? 'CASE-' + caseNo(i) : '—') + '\n作成：' + d + '（AIハヤト）\n' + (i.url ? 'Notion：' + i.url + '\n' : '') + '\n' +
+        sec('相談内容', String(i.指示内容 || '').split('【回答のしかた】')[0]) + sec('完了条件', i.完了条件) +
+        BM_AIS.map(x => sec(x.name + '（' + x.role + '）', ansOf(i, x.name))).join('') +
+        sec('議長まとめ（' + (m.chair || '議長') + '）', i.検証結果) + sec('社長の判断の記録', i.最終判断) +
+        sec('再審議の記録', /前回の会議記録/.test(i['手順・改善メモ'] || '') ? i['手順・改善メモ'] : '') +
+        sec('実行結果（' + (i.Bot || '担当') + '）', i.実行結果) + sec('実行の証拠', i.実行証拠URL) + sec('社長のひとこと', a.comment);
+      const doc = await gas('doc', { title:id + '_' + theme, content });
+      let sheetNote = '';
+      try{ await gas('append', { sheet:'会議録', record:{ 会議ID:id, 日付:ymd(0), テーマ:theme, 結論:String(i.検証結果 || '').replace(/\s+/g, ' ').slice(0, 300),
+                    採否:'承認・実行済み', 次のアクション:String(i.最終判断 || '').replace(/\s+/g, ' ').slice(-200), 結果:String(i.実行結果 || '').replace(/\s+/g, ' ').slice(0, 300),
+                    実行担当:i.Bot || '', 会議録URL:doc.url || '', NotionURL:i.url || '', ひとこと:a.comment || '' } }); }
+      catch(e){ sheetNote = '台帳に「会議録」シートが無いため一覧には書けませんでした（' + e.message + '）'; }
+      const r = await gas('notion_update', { id:i.id, record:{ ステータス:'完了' },
+                append:{ 最終判断:'【' + BOSS + '／' + d + '・AIハヤト】完了。会議録 ' + id + '：' + (doc.url || '') + (a.comment ? '／' + a.comment : '') } });
+      if(isWide()) setTimeout(() => loadOps(true), 500); else OPS = null;
+      return { ok:true, where:'ドライブ「AIハヤト」フォルダ・Notion', url:doc.url || r.url, id, theme, sheetNote };
+    },
+    ok: r => '完了にして、会議録「' + r.id + '_' + r.theme + '」を作りました。' + (r.sheetNote ? '　' + r.sheetNote : '台帳の「会議録」にも1行残しました。'),
+    ng: e => '完了にできませんでした。' + e
+  },
+
   /* ---------- Lv12：会議の結果（read）→ 3人のAIの意見と議長の結論案を読み上げ ---------- */
   {
     id:'bm_result', name:'会議の結果', icon:'🧠', type:'read',
@@ -2082,6 +2134,16 @@ const isMeeting = i => !isReport(i) && !['完了','エラー','実行中'].inclu
 const meetingOf = i => { const ans = BM_AIS.map(a => Object.assign({ ok: !!ansOf(i, a.name) }, a)), n = ans.filter(a => a.ok).length;
   return { i, ans, n, chair: i.主担当AI && i.主担当AI !== 'なし' ? i.主担当AI : '', summed: !!String(i.検証結果 || '').trim() || i.ステータス === '承認待ち' }; };
 const caseNo = i => i.案件ID ? String(i.案件ID).replace(/\D/g, '') : '';
+const bmId = i => 'BM-' + (caseNo(i) ? caseNo(i).padStart(4, '0') : ymd(0).replace(/\//g, ''));   // 会議ID＝案件番号（例：BM-0064）
+const bmTheme = i => String(i.件名 || '').replace(/^\s*【BM】/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 30);
+function bmFind(text){   // 案件IDか件名で1件に絞る（実行中を優先）
+  const items = (OPS && OPS.items) || [];
+  const no = (String(text || '').match(/\d+/) || [])[0];
+  const byNo = no ? items.filter(i => caseNo(i) === no) : [];
+  let m = byNo.length === 1 ? byNo : findCase(items, text);
+  if(m.length > 1){ const run = m.filter(i => i.ステータス === '実行中'); if(run.length) m = run; }
+  return m.length === 1 ? { hit:m[0] } : m.length ? { list:m } : {};
+}
 function buildOps(all){
   all = all.slice().sort((a, b) => String(b.更新 || '').localeCompare(String(a.更新 || '')));   // 更新の新しい順
   const items = all.filter(i => !isReport(i));                     // 案件だけ
